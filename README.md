@@ -12,12 +12,19 @@ npm test          # unit tests (crypto, vault, generator)
 npm run build     # build ไปที่ dist/
 ```
 
-### ติดตั้งบน iPhone
-WebCrypto ใช้ได้เฉพาะบน HTTPS จึงต้อง deploy `dist/` ขึ้นเว็บโฮสต์ที่เป็น HTTPS ก่อน
-(GitHub Pages, Cloudflare Pages, Netlify ฯลฯ) จากนั้นเปิดใน Safari → ปุ่มแชร์ → “เพิ่มไปยังหน้าจอโฮม”
+### ติดตั้งเป็นแอพบน Windows (Edge / Chrome)
+1. push ขึ้น GitHub แล้วเปิด Settings → Pages → Source: **GitHub Actions**
+   (workflow `.github/workflows/deploy.yml` จะ test + build + deploy ให้ทุกครั้งที่ push `main`)
+2. เปิด `https://<user>.github.io/<repo>/` ใน Edge
+3. เมนู `…` → Apps → **Install this site as an app** แล้วติ๊ก “สร้างทางลัดบนเดสก์ท็อป”
+4. จากนั้นกดไอคอน Vault บนเดสก์ท็อปได้เลย เปิดเป็นหน้าต่างแยก ใช้ออฟไลน์ได้
 
-> ควรติดตั้งเป็นแอพบนหน้าโฮม เพราะ Safari อาจล้างข้อมูลของเว็บที่ไม่ได้เปิดนาน ๆ
-> และควรกด “ส่งออกไฟล์สำรอง” เก็บไว้ใน iCloud Drive เป็นระยะ
+ข้อมูลเก็บอยู่ใน profile ของเบราว์เซอร์บนเครื่องนั้น (IndexedDB) ไม่ถูกส่งขึ้น GitHub
+ถ้าล้างข้อมูลเบราว์เซอร์หรือถอนแอพ ข้อมูลจะหาย จึงควรกด “ส่งออกไฟล์สำรอง” เป็นระยะ
+
+### ติดตั้งบน iPhone
+เปิด URL เดียวกันใน Safari → ปุ่มแชร์ → “เพิ่มไปยังหน้าจอโฮม”
+(แต่ละเครื่องมีคลังแยกกัน ย้ายข้อมูลด้วยไฟล์สำรอง)
 
 ## การออกแบบความปลอดภัย
 

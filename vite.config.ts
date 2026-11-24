@@ -18,6 +18,8 @@ const csp: Plugin = {
 }
 
 export default defineConfig({
+  // relative paths so the build works at any sub-path (e.g. GitHub Pages /repo/)
+  base: './',
   plugins: [react(), csp],
   test: { environment: 'node' },
 })

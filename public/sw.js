@@ -1,8 +1,9 @@
 // Offline support: cache the app shell. The vault itself lives in IndexedDB, never here.
 const CACHE = 'vault-v1'
+const SHELL = new URL('./', self.location).href
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/manifest.webmanifest', '/icon.svg'])))
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './manifest.webmanifest', './icon.svg'])))
   self.skipWaiting()
 })
 
@@ -22,10 +23,10 @@ self.addEventListener('fetch', (e) => {
       .then((res) => {
         if (res.ok) {
           const copy = res.clone()
-          caches.open(CACHE).then((c) => c.put(req.mode === 'navigate' ? '/' : req, copy))
+          caches.open(CACHE).then((c) => c.put(req.mode === 'navigate' ? SHELL : req, copy))
         }
         return res
       })
-      .catch(async () => (await caches.match(req.mode === 'navigate' ? '/' : req)) ?? Response.error()),
+      .catch(async () => (await caches.match(req.mode === 'navigate' ? SHELL : req)) ?? Response.error()),
   )
 })

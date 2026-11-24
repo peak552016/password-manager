@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { baseName, groupRows } from './group'
+import { baseName, groupRows, similarNames } from './group'
 import { dbEngine } from './format'
 import { EMPTY_ENTRY, normalizeEntry, type DecryptedItem } from './vault'
 
-const item = (title: string, environment = '', type = 'database'): DecryptedItem => ({
+const item = (title: string, environment = '', type = 'database', collection = ''): DecryptedItem => ({
   ...EMPTY_ENTRY,
   type,
+  collection,
   title,
   environment,
   id: title,
@@ -55,5 +56,24 @@ describe('collection migration', () => {
   it('picks the DBeaver project out of older notes', () => {
     expect(normalizeEntry({ title: 'x', notes: 'DBeaver project: TLI DB\nDBeaver folder: f' }).collection).toBe('TLI DB')
     expect(normalizeEntry({ title: 'x', collection: 'Mine' }).collection).toBe('Mine')
+  })
+})
+
+describe('typo-tolerant grouping', () => {
+  it('groups a misspelt name in the same หมวด, named after the หมวด', () => {
+    const rows = groupRows([
+      item('Customer Dashbaord - SIT', 'SIT', 'login', 'Customer Dashboard'),
+      item('Customer Dashboard - UAT', 'UAT', 'login', 'Customer Dashboard'),
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].kind === 'group' && rows[0].name).toBe('Customer Dashboard')
+  })
+  it('keeps short or clearly different names apart', () => {
+    expect(similarNames('kyc', 'kyb')).toBe(false)
+    expect(similarNames('customer', 'consolidate')).toBe(false)
+    expect(similarNames('appserver01', 'appserver02')).toBe(false)
+    expect(similarNames('consolidate (rsale_pg)', 'consolidate (rsales_pg)')).toBe(true)
+    const rows = groupRows([item('customer_a - DEV', 'DEV', 'database', 'X'), item('customer_b - UAT', 'UAT', 'database', 'Y')])
+    expect(rows.every((r) => r.kind === 'item')).toBe(true)
   })
 })

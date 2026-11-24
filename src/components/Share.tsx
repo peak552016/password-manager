@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { AlertTriangle, CheckCircle2, Database, Download, FileArchive, FileJson, FileSpreadsheet, FileUp, Loader2, Lock, RefreshCw, Send, Share2, Upload, X } from 'lucide-react'
 import type { DecryptedItem, Entry } from '../lib/vault'
 import { passwordZip } from '../lib/zip'
+import { packFile, unpackFile } from '../lib/container'
 import { toDbeaver, toPlainCsv, toPlainJson, toPostmanEnvironment, type ExportFile } from '../lib/exporters'
 import { createShare, generateSharePassword, openShare, isShareFile, type ShareFile } from '../lib/share'
 import { CopyButton } from './ui'
@@ -97,8 +98,8 @@ export function ShareExport({
       const entries = chosen.map(toEntry)
       if (mode === 'vault') {
         const share = await createShare(entries, password, name.trim())
-        const file = `vault-share-${slug(name)}-${stamp}.json`
-        save(new Blob([JSON.stringify(share)], { type: 'application/json' }), file)
+        const file = `vault-share-${slug(name)}-${stamp}.vshare`
+        save(await packFile(share), file)
         setDone({ file, count: entries.length })
         return
       }
@@ -326,7 +327,7 @@ export function ShareImport({
     try {
       let parsed: unknown
       try {
-        parsed = JSON.parse(await file.text())
+        parsed = await unpackFile(file)
       } catch {
         throw new Error('อ่านไฟล์ไม่ได้')
       }
@@ -380,8 +381,8 @@ export function ShareImport({
         <div className="form-body">
           <label className="dropzone">
             <FileUp />
-            <span>{file ? file.name : 'เลือกไฟล์ vault-share-….json'}</span>
-            <input type="file" accept="application/json,.json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <span>{file ? file.name : 'เลือกไฟล์ vault-share-….vshare'}</span>
+            <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
           <input
             className="mono"

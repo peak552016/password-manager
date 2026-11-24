@@ -5,6 +5,7 @@ import { changeMasterPassword, exportBackup, unlock, WrongPasswordError } from '
 import { clearPin, hasPin, verifyPin } from '../lib/pin'
 import { estimateBits } from '../lib/generator'
 import { Strength } from './Strength'
+import { packFile } from '../lib/container'
 import { ImportBackup } from './ImportBackup'
 
 const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent)
@@ -15,11 +16,11 @@ export function Settings({ vaultId, onBack, onReplaced }: { vaultId: string; onB
 
   async function doExport() {
     const backup = await exportBackup()
-    const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' })
-    const name = `vault-backup-${new Date().toISOString().slice(0, 10)}.json`
+    const blob = await packFile(backup)
+    const name = `vault-backup-${new Date().toISOString().slice(0, 10)}.vault`
     // iOS: share sheet lets the user save to Files / iCloud Drive
     if (isIOS) {
-      const file = new File([blob], name, { type: 'application/json' })
+      const file = new File([blob], name, { type: 'application/octet-stream' })
       if (navigator.canShare?.({ files: [file] })) {
         try {
           await navigator.share({ files: [file], title: name })

@@ -198,13 +198,40 @@ export interface Backup {
   exportedAt: number
   account: AccountRecord
   items: ItemRecord[]
+  /** app settings (theme, hide-until-search, list width, PIN hash); no secrets */
+  prefs?: Record<string, string>
 }
 
-/** The backup is exactly what's on disk: ciphertext only. */
+const PREF_KEYS = ['vault-theme', 'vault-search-first', 'vault-list-w']
+
+function readPrefs(vaultId: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  try {
+    for (const k of [...PREF_KEYS, `vault-pin:${vaultId}`]) {
+      const v = localStorage.getItem(k)
+      if (v !== null) out[k] = v
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  return out
+}
+
+function writePrefs(prefs: Record<string, string> | undefined, vaultId: string) {
+  if (!prefs) return
+  try {
+    for (const [k, v] of Object.entries(prefs))
+      if (PREF_KEYS.includes(k) || k === `vault-pin:${vaultId}`) localStorage.setItem(k, String(v))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** The backup is exactly what's on disk: ciphertext only (plus app settings). */
 export async function exportBackup(): Promise<Backup> {
   const account = await db.getAccount()
   if (!account) throw new Error('ยังไม่มีคลังรหัสผ่าน')
-  return { format: 'pm-backup', version: 1, exportedAt: Date.now(), account, items: await db.allItems() }
+  return { format: 'pm-backup', version: 1, exportedAt: Date.now(), account, items: await db.allItems(), prefs: readPrefs(account.vaults[0]?.id ?? '') }
 }
 
 /** Verifies the password against the backup before overwriting local data. */
@@ -214,5 +241,6 @@ export async function importBackup(backup: Backup, password: string): Promise<Se
   // make sure every item actually decrypts before we replace anything
   for (const r of backup.items) await decryptJson(session.key, r.data, aad(r.vaultId, r.id))
   await db.replaceAll(backup.account, backup.items)
+  writePrefs(backup.prefs, session.vaultId)
   return session
 }

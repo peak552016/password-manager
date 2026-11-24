@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { unpackFile } from '../lib/container'
 import { FileUp, Loader2 } from 'lucide-react'
 import { importBackup, type Backup, type Session } from '../lib/vault'
 
@@ -21,7 +22,7 @@ export function ImportBackup({ onDone, onCancel, replacing }: Props) {
     setBusy(true)
     setError('')
     try {
-      const backup = JSON.parse(await file.text()) as Backup
+      const backup = (await unpackFile(file)) as Backup
       onDone(await importBackup(backup, pw))
     } catch (err) {
       setError(err instanceof SyntaxError ? 'อ่านไฟล์ไม่ได้' : err instanceof Error ? err.message : String(err))
@@ -39,8 +40,8 @@ export function ImportBackup({ onDone, onCancel, replacing }: Props) {
       )}
       <label className="dropzone">
         <FileUp />
-        <span>{file ? file.name : 'เลือกไฟล์สำรอง (.json)'}</span>
-        <input type="file" accept="application/json,.json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <span>{file ? file.name : 'เลือกไฟล์สำรอง (.vault)'}</span>
+        <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       </label>
       <input
         type="password"

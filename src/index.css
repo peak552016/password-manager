@@ -336,8 +336,15 @@ label.check input { margin-top: 3px; width: 16px; height: 16px; accent-color: va
 /* ---------- list ---------- */
 .listpane { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: var(--panel); }
 .list-head { display: flex; gap: 8px; padding: 14px 12px 10px; }
-.search { position: relative; flex: 1; display: flex; align-items: center; }
-.search > svg { position: absolute; left: 11px; width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+.search { position: relative; flex: 1; display: flex; align-items: center; margin: 0; }
+.search-go {
+  position: absolute; left: 4px; z-index: 1; display: grid; place-items: center;
+  width: 28px; height: 28px; border: none; border-radius: 7px; background: none; color: var(--muted); cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.search-go svg { width: 16px; height: 16px; }
+.search-go:hover, .search.pending .search-go { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.search.pending .kbd { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .search input { padding-left: 34px !important; padding-right: 64px !important; background: var(--surface) !important; }
 .search .kbd { position: absolute; right: 9px; pointer-events: none; }
 .new-btn { padding: 8px 12px; }

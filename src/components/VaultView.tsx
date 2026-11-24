@@ -32,7 +32,10 @@ const MOD = isMac ? '⌘' : 'Ctrl'
 export function VaultView({ session, onLock }: { session: Session; onLock: () => void }) {
   const [items, setItems] = useState<DecryptedItem[] | null>(null)
   const [error, setError] = useState('')
-  const [query, setQuery] = useState('')
+  /** what is typed */
+  const [draft, setDraft] = useState('')
+  /** what is searched: in search-first mode only after Enter / the search button */
+  const [submitted, setSubmitted] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [envFilter, setEnvFilter] = useState('')
   /** null = every หมวด, '' = items without one */
@@ -40,6 +43,13 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   const [toggled, setToggled] = useState<Map<string, boolean>>(new Map())
   const [listW, setListW] = useState(readListWidth)
   const searchFirst = useSearchFirst()
+  const query = searchFirst ? submitted : draft
+  const pending = searchFirst && draft.trim() !== '' && draft !== submitted
+  const runSearch = () => setSubmitted(draft)
+  const clearSearch = () => {
+    setDraft('')
+    setSubmitted('')
+  }
   const [pane, setPane] = useState<Pane>({ kind: 'empty' })
   const [toast, setToast] = useToast()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -350,24 +360,40 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       <section className="listpane">
         <ResizeHandle width={listW} onChange={setListW} />
         <div className="list-head">
-          <div className="search">
-            <Search />
+          <form
+            className={`search ${pending ? 'pending' : ''}`}
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (pending || !searchFirst) {
+                runSearch()
+                if (searchFirst) return
+              }
+              if (filtered[0]) setPane({ kind: 'detail', id: filtered[0].id })
+            }}
+          >
+            <button type="submit" className="search-go" aria-label="ค้นหา" title="ค้นหา (Enter)">
+              <Search />
+            </button>
             <input
               ref={searchRef}
               autoFocus
               type="search"
               placeholder="ค้นหา"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value)
+                // clearing the box hides results right away
+                if (!e.target.value.trim()) setSubmitted('')
+              }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && filtered[0]) setPane({ kind: 'detail', id: filtered[0].id })
-                if (e.key === 'Escape') setQuery('')
+                if (e.key === 'Escape') clearSearch()
               }}
               autoCapitalize="off"
               autoCorrect="off"
             />
-            <Kbd>{MOD} K</Kbd>
-          </div>
+            {pending ? <Kbd>Enter ↵</Kbd> : <Kbd>{MOD} K</Kbd>}
+          </form>
           <button className="btn primary new-btn" onClick={() => setPane({ kind: 'pick' })} title={`รายการใหม่ (${MOD} N)`}>
             <Plus /> <span>ใหม่</span>
           </button>
@@ -383,7 +409,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         ) : hidden ? (
           <div className="list-hidden">
             <Search />
-            <p>พิมพ์ชื่อเพื่อค้นหา</p>
+            <p>{pending ? 'กด Enter เพื่อค้นหา' : 'พิมพ์ชื่อแล้วกด Enter'}</p>
             <small>
               {items.length ? `ซ่อนไว้ ${items.length} รายการ · เช่น "customer" หรือ "uat"` : 'ยังไม่มีรายการ'}
             </small>

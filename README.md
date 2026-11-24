@@ -26,6 +26,26 @@ npm run build     # build ไปที่ dist/
 เปิด URL เดียวกันใน Safari → ปุ่มแชร์ → “เพิ่มไปยังหน้าจอโฮม”
 (แต่ละเครื่องมีคลังแยกกัน ย้ายข้อมูลด้วยไฟล์สำรอง)
 
+## ประเภทรายการ
+
+เลือกประเภทก่อน แล้วฟอร์มจะแสดงเฉพาะช่องที่เกี่ยวข้อง (กำหนดไว้ใน `src/lib/types.ts`)
+
+| ประเภท | ช่องหลัก |
+|---|---|
+| Login เว็บไซต์ | ชื่อผู้ใช้, รหัสผ่าน (มีตัวสร้าง), เว็บไซต์ |
+| API Credentials | Key, Client ID, Client Secret, Endpoint |
+| Token | Token, ประเภท, Scope, วันหมดอายุ (เตือนก่อนหมด) |
+| cURL / Request | คำสั่ง curl ทั้งก้อน, ใช้ทำอะไร |
+| Database | ชนิด, Host, Port, DB, User, Password, Connection string |
+| Server / SSH | Host, Port, User, Password, Private key |
+| Environment Variables | เนื้อหาไฟล์ .env, โปรเจกต์ |
+| Secure Note | ข้อความลับ |
+
+ประเภทเชิงเทคนิคมี **Environment** (DEV / SIT / UAT / PROD หรือพิมพ์เอง) และ **Link Knowledge**
+ทุกประเภทเพิ่มฟิลด์เองได้ และปักเป็นรายการโปรดได้
+
+คีย์ลัด: `Ctrl K` ค้นหา · `Ctrl N` รายการใหม่ · `Ctrl L` ล็อก
+
 ## การออกแบบความปลอดภัย
 
 ```

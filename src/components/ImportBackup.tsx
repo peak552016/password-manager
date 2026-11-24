@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { FileUp, Loader2 } from 'lucide-react'
 import { importBackup, type Backup, type Session } from '../lib/vault'
 
 interface Props {
@@ -29,26 +30,38 @@ export function ImportBackup({ onDone, onCancel, replacing }: Props) {
   }
 
   return (
-    <main className="auth">
-      <h1>กู้คืนจากไฟล์สำรอง</h1>
-      {replacing && <p className="hint error">ข้อมูลในเครื่องตอนนี้จะถูกแทนที่ทั้งหมด</p>}
-      <form onSubmit={submit} className="stack">
-        <label>
-          ไฟล์สำรอง (.json)
-          <input type="file" accept="application/json,.json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        </label>
-        <label>
-          Master password ของไฟล์สำรอง
-          <input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />
-        </label>
-        {error && <p className="hint error">{error}</p>}
-        <button className="primary" disabled={!file || !pw || busy}>
-          {busy ? 'กำลังตรวจสอบ…' : 'กู้คืน'}
-        </button>
-        <button type="button" className="link" onClick={onCancel}>
-          ยกเลิก
-        </button>
-      </form>
-    </main>
+    <form onSubmit={submit} className="auth-form import">
+      {replacing && (
+        <>
+          <h2>กู้คืนจากไฟล์สำรอง</h2>
+          <p className="hint error">ข้อมูลในเครื่องตอนนี้จะถูกแทนที่ทั้งหมด</p>
+        </>
+      )}
+      <label className="dropzone">
+        <FileUp />
+        <span>{file ? file.name : 'เลือกไฟล์สำรอง (.json)'}</span>
+        <input type="file" accept="application/json,.json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      </label>
+      <input
+        type="password"
+        placeholder="Master password ของไฟล์สำรอง"
+        autoComplete="current-password"
+        value={pw}
+        onChange={(e) => setPw(e.target.value)}
+      />
+      {error && <p className="hint error">{error}</p>}
+      <button className="btn primary wide" disabled={!file || !pw || busy}>
+        {busy ? (
+          <>
+            <Loader2 className="spin" /> กำลังตรวจสอบ…
+          </>
+        ) : (
+          'กู้คืน'
+        )}
+      </button>
+      <button type="button" className="btn ghost wide" onClick={onCancel}>
+        ยกเลิก
+      </button>
+    </form>
   )
 }

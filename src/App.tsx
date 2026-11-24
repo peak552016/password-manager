@@ -20,7 +20,7 @@ export default function App() {
 
   switch (state.kind) {
     case 'loading':
-      return <div className="center muted">กำลังโหลด…</div>
+      return null
     case 'setup':
       return <Setup onDone={open} />
     case 'locked':

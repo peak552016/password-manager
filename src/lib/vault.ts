@@ -12,12 +12,57 @@ import {
 import * as db from './db'
 import type { AccountRecord, ItemRecord } from './db'
 
+export interface CustomField {
+  label: string
+  value: string
+  /** hidden by default */
+  secret: boolean
+}
+
 export interface Entry {
+  /** one of TYPES[].id */
+  type: string
   title: string
-  username: string
-  password: string
-  url: string
+  environment: string
+  knowledgeUrl: string
   notes: string
+  favorite: boolean
+  /** type-specific fields, keyed by FieldDef.key */
+  values: Record<string, string>
+  /** any extra key/value pairs */
+  fields: CustomField[]
+}
+
+export const EMPTY_ENTRY: Entry = {
+  type: 'login',
+  title: '',
+  environment: '',
+  knowledgeUrl: '',
+  notes: '',
+  favorite: false,
+  values: {},
+  fields: [],
+}
+
+/** Accepts entries saved by any earlier version and returns the current shape. */
+export function normalizeEntry(raw: Partial<Entry> & Record<string, unknown>): Entry {
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
+  let values: Record<string, string> = {}
+  if (raw.values && typeof raw.values === 'object') values = { ...raw.values }
+  else {
+    // v1: flat login fields
+    for (const k of ['username', 'password', 'url', 'apiKey', 'clientId', 'clientSecret']) if (str(raw[k])) values[k] = str(raw[k])
+  }
+  return {
+    type: str(raw.type) || 'login',
+    title: str(raw.title),
+    environment: str(raw.environment),
+    knowledgeUrl: str(raw.knowledgeUrl),
+    notes: str(raw.notes),
+    favorite: raw.favorite === true,
+    values,
+    fields: Array.isArray(raw.fields) ? raw.fields : [],
+  }
 }
 
 export interface DecryptedItem extends Entry {
@@ -114,7 +159,7 @@ export async function listEntries(s: Session): Promise<DecryptedItem[]> {
   const records = await db.listItems(s.vaultId)
   const items = await Promise.all(
     records.map(async (r) => ({
-      ...(await decryptJson<Entry>(s.key, r.data, aad(r.vaultId, r.id))),
+      ...normalizeEntry(await decryptJson<Partial<Entry> & Record<string, unknown>>(s.key, r.data, aad(r.vaultId, r.id))),
       id: r.id,
       updatedAt: r.updatedAt,
     })),

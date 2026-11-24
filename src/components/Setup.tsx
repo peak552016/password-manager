@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
+import { Loader2 } from 'lucide-react'
 import { createAccount, type Session } from '../lib/vault'
 import { estimateBits } from '../lib/generator'
 import { Strength } from './Strength'
 import { ImportBackup } from './ImportBackup'
+import { AuthShell } from './AuthShell'
 
 const MIN_LENGTH = 10
 
@@ -31,50 +33,54 @@ export function Setup({ onDone }: { onDone: (s: Session) => void }) {
     }
   }
 
-  if (importing) return <ImportBackup onDone={onDone} onCancel={() => setImporting(false)} />
+  if (importing)
+    return (
+      <AuthShell title="กู้คืนจากไฟล์สำรอง">
+        <ImportBackup onDone={onDone} onCancel={() => setImporting(false)} />
+      </AuthShell>
+    )
 
   return (
-    <main className="auth">
-      <div className="logo" aria-hidden>
-        🔐
-      </div>
-      <h1>สร้างคลังรหัสผ่าน</h1>
-      <p className="muted">ตั้ง master password สำหรับปลดล็อกคลัง ข้อมูลทั้งหมดจะเข้ารหัสอยู่ในเครื่องนี้เท่านั้น</p>
-      <form onSubmit={submit} className="stack">
-        <label>
-          Master password
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-            autoFocus
-          />
-        </label>
+    <AuthShell title="สร้างคลังของคุณ" subtitle="ตั้ง master password หนึ่งตัว ใช้ปลดล็อกทุกอย่าง ข้อมูลเข้ารหัสอยู่ในเครื่องนี้เท่านั้น">
+      <form onSubmit={submit} className="auth-form">
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder="Master password"
+          aria-label="Master password"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          autoFocus
+        />
         {pw && <Strength bits={estimateBits(pw)} />}
-        {pw && tooShort && <p className="hint">ต้องยาวอย่างน้อย {MIN_LENGTH} ตัวอักษร</p>}
-        <label>
-          ยืนยัน master password
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-        </label>
+        {pw && tooShort && <p className="hint">ต้องยาวอย่างน้อย {MIN_LENGTH} ตัวอักษร ลองใช้วลี 4–5 คำต่อกัน</p>}
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder="ยืนยัน master password"
+          aria-label="ยืนยัน master password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+        />
         {mismatch && <p className="hint error">รหัสผ่านไม่ตรงกัน</p>}
         <label className="check">
           <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
-          <span>เข้าใจแล้วว่าถ้าลืม master password จะกู้ข้อมูลคืนไม่ได้</span>
+          <span>เข้าใจแล้วว่าถ้าลืม master password จะไม่มีใครกู้ข้อมูลคืนได้</span>
         </label>
         {error && <p className="hint error">{error}</p>}
-        <button className="primary" disabled={!canSubmit}>
-          {busy ? 'กำลังสร้างกุญแจ…' : 'สร้างคลัง'}
+        <button className="btn primary wide" disabled={!canSubmit}>
+          {busy ? (
+            <>
+              <Loader2 className="spin" /> กำลังสร้างกุญแจ…
+            </>
+          ) : (
+            'สร้างคลัง'
+          )}
         </button>
-        <button type="button" className="link" onClick={() => setImporting(true)}>
-          กู้คืนจากไฟล์สำรอง
+        <button type="button" className="btn ghost wide" onClick={() => setImporting(true)}>
+          มีไฟล์สำรองอยู่แล้ว? กู้คืน
         </button>
       </form>
-    </main>
+    </AuthShell>
   )
 }

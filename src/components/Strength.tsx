@@ -4,8 +4,10 @@ export function Strength({ bits }: { bits: number }) {
   const { label, level } = strengthLabel(bits)
   return (
     <div className={`strength s${level}`}>
-      <div className="bar">
-        <span style={{ width: `${Math.min(100, (bits / 100) * 100)}%` }} />
+      <div className="meter">
+        {[0, 1, 2, 3].map((i) => (
+          <span key={i} className={i <= level ? 'on' : ''} />
+        ))}
       </div>
       <small>
         {label} · ~{bits} bits

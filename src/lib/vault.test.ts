@@ -7,7 +7,7 @@ import { generatePassword, DEFAULT_GEN } from './generator'
 // small KDF params so tests run fast; production uses 64 MiB
 const FAST = { memory: 1024, iterations: 1 }
 
-const entry = { title: 'GitHub', username: 'peak', password: 's3cret!', url: 'https://github.com', notes: '' }
+const entry = vault.normalizeEntry({ title: 'GitHub', values: { username: 'peak', password: 's3cret!', url: 'https://github.com' } })
 
 describe('vault', () => {
   beforeEach(async () => {
@@ -62,6 +62,35 @@ describe('vault', () => {
     await expect(vault.importBackup(backup, 'nope')).rejects.toBeInstanceOf(vault.WrongPasswordError)
     const s2 = await vault.importBackup(backup, 'pw')
     expect(await vault.listEntries(s2)).toHaveLength(1)
+  })
+})
+
+describe('typed entries', () => {
+  it('round-trips typed values and custom fields, encrypted', async () => {
+    const s = await vault.createAccount('pw-api-test', FAST)
+    const api = vault.normalizeEntry({
+      type: 'api',
+      title: 'Payment API',
+      environment: 'UAT',
+      knowledgeUrl: 'https://wiki.example.com/payment',
+      values: { apiKey: 'ak_live_123', clientId: 'client-abc', clientSecret: 'cs_secret_456' },
+      fields: [{ label: 'Webhook key', value: 'wh_789', secret: true }],
+    })
+    await vault.saveEntry(s, api)
+    const curl = vault.normalizeEntry({ type: 'curl', title: 'Get policy', values: { curl: "curl -H 'Authorization: Bearer tok_abc'" } })
+    await vault.saveEntry(s, curl)
+    const got = await vault.listEntries(s)
+    expect(got.find((g) => g.type === 'api')).toMatchObject(api)
+    expect(got.find((g) => g.type === 'curl')).toMatchObject(curl)
+    const dump = JSON.stringify(await vault.exportBackup())
+    for (const v of ['ak_live_123', 'client-abc', 'cs_secret_456', 'wh_789', 'wiki.example', 'tok_abc', 'Payment']) expect(dump).not.toContain(v)
+  })
+
+  it('upgrades entries saved by the first version', async () => {
+    const s = await vault.createAccount('pw-old', FAST)
+    await vault.saveEntry(s, { title: 'Old', username: 'u', password: 'p', url: 'x.com', notes: 'n' } as unknown as vault.Entry)
+    const [got] = await vault.listEntries(s)
+    expect(got).toMatchObject({ type: 'login', title: 'Old', notes: 'n', values: { username: 'u', password: 'p', url: 'x.com' }, fields: [] })
   })
 })
 

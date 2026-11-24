@@ -138,6 +138,12 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
 
   // search-first: nothing is listed until the user searches or picks a หมวด / favourites on purpose
   const hidden = searchFirst && !query.trim() && collFilter === null && typeFilter !== 'fav'
+  // when the list hides again (search cleared), close the open item too
+  const [wasHidden, setWasHidden] = useState(hidden)
+  if (hidden !== wasHidden) {
+    setWasHidden(hidden)
+    if (hidden && pane.kind === 'detail') setPane({ kind: 'empty' })
+  }
 
   const selectedId = pane.kind === 'detail' || pane.kind === 'edit' ? pane.id : null
   const selected = selectedId ? items?.find((i) => i.id === selectedId) : undefined

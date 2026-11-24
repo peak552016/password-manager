@@ -13,7 +13,7 @@ import { EnvBadge, ItemIcon, Kbd, Toast } from './ui'
 import { collectionsOf, groupRows } from '../lib/group'
 import { useSearchFirst } from '../lib/prefs'
 import { useToast } from '../lib/useToast'
-import { databaseSummary, shortHost } from '../lib/format'
+import { dbEngine } from '../lib/format'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
 
 type Pane =
@@ -139,7 +139,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             {i.title || '(ไม่มีชื่อ)'}
             {i.favorite && <Star className="li-star" />}
           </strong>
-          <small>{subtitle(i)}</small>
+          <small>{kindLabel(i)}</small>
         </span>
         {i.environment && <EnvBadge env={i.environment} />}
       </button>
@@ -464,10 +464,9 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
                                       {i.environment ? <EnvBadge env={i.environment} /> : <span className="env">—</span>}
                                       <span className="li-meta">
                                         <strong>
-                                          {subtitle(i)}
+                                          {i.title || '(ไม่มีชื่อ)'}
                                           {i.favorite && <Star className="li-star" />}
                                         </strong>
-                                        <small>{i.title}</small>
                                       </span>
                                     </button>
                                   </li>
@@ -512,22 +511,11 @@ function EmptyPane({ total, hidden, onNew }: { total: number; hidden: boolean; o
   )
 }
 
-function subtitle(i: DecryptedItem): string {
+/** List rows show only what kind of thing it is; hosts, users and URLs stay inside the item. */
+function kindLabel(i: DecryptedItem): string {
   const t = typeOf(i.type)
-  if (i.type === 'database' || i.type === 'server') {
-    const s = i.type === 'database' ? databaseSummary(i.values) : [i.values.username, i.values.host && shortHost(i.values.host)].filter(Boolean).join('@')
-    if (s) return s
-  }
-  for (const f of t.fields) if (f.subtitle && i.values[f.key]) return i.values[f.key]
-  const url = i.values.url
-  if (url) {
-    try {
-      return new URL(url.includes('://') ? url : `https://${url}`).hostname
-    } catch {
-      return url
-    }
-  }
-  return t.label
+  const eng = i.type === 'database' ? dbEngine(i.values) : null
+  return [eng?.label ?? t.label, i.collection].filter(Boolean).join(' · ')
 }
 
 /** Split the list by หมวด (named ones first, then "no หมวด") when browsing everything. */

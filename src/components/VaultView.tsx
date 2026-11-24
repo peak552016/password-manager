@@ -338,7 +338,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             }
           >
             <Share2 className="nav-ic" />
-            <span>ส่งออกเพื่อแชร์</span>
+            <span>ส่งออก / แชร์</span>
           </button>
           <button className="nav-item" aria-current={pane.kind === 'import'} onClick={() => setPane({ kind: 'import' })}>
             <Download className="nav-ic" />

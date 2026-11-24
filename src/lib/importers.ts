@@ -100,7 +100,11 @@ export function isDbeaverDataSources(x: unknown): x is { connections: Record<str
   return !!x && typeof x === 'object' && typeof (x as { connections?: unknown }).connections === 'object'
 }
 
-export function importDbeaver(dataSources: { connections: Record<string, DbeaverConn> }, creds: DbeaverCreds = {}): Entry[] {
+export function importDbeaver(
+  dataSources: { connections: Record<string, DbeaverConn> },
+  creds: DbeaverCreds = {},
+  project = '',
+): Entry[] {
   return Object.entries(dataSources.connections).map(([id, c]) => {
     const cfg = c.configuration ?? {}
     const cred = creds[id]?.['#connection'] ?? {}
@@ -118,7 +122,7 @@ export function importDbeaver(dataSources: { connections: Record<string, Dbeaver
       type: 'database',
       title: name,
       environment: detectEnvironment(name, cfg.host, c.folder),
-      notes: c.folder ? `DBeaver folder: ${c.folder}` : '',
+      notes: [project && `DBeaver project: ${project}`, c.folder && `DBeaver folder: ${c.folder}`].filter(Boolean).join('\n'),
       values: Object.fromEntries(Object.entries(values).filter(([, v]) => v)),
     })
   })

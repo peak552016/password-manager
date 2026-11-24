@@ -48,7 +48,7 @@ npm run build     # build ไปที่ dist/
 
 ## นำเข้าจากโปรแกรมอื่น (แถบซ้าย → นำเข้า)
 
-- **DBeaver:** เลือก `data-sources.json` + `credentials-config.json` จาก `%APPDATA%\DBeaverData\workspace6\General\.dbeaver`
+- **DBeaver:** เลือกโฟลเดอร์ `%APPDATA%\DBeaverData\workspace6` เพื่อดึงทุกโปรเจกต์ หรือเลือก `data-sources.json` + `credentials-config.json` ทีละโปรเจกต์ (`workspace6\<project>\.dbeaver`)
   แอพถอดรหัส credentials ด้วย key มาตรฐานของ DBeaver ในเบราว์เซอร์ แล้วสร้างรายการ Database (host, port, database, user, password)
   ถ้าตั้ง master password ใน DBeaver ไว้จะถอดรหัสไม่ได้
 - **Postman:** export Collection (v2.1) และ Environment แล้วเลือกพร้อมกัน ทุก request กลายเป็นรายการ cURL

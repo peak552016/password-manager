@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { AlertTriangle, Database, Download, FileUp, Loader2, Send, Share2, X } from 'lucide-react'
+import { AlertTriangle, Database, Download, FileUp, FolderOpen, Loader2, Send, Share2, X } from 'lucide-react'
 import type { DecryptedItem, Entry } from '../lib/vault'
 import {
   applyEnvironment,
@@ -13,12 +13,13 @@ import {
   type DbeaverCreds,
 } from '../lib/importers'
 import { ItemPicker } from './ItemPicker'
+import { databaseSummary } from '../lib/format'
 import { ShareImport } from './Share'
 import { CopyButton } from './ui'
 
 type Source = 'dbeaver' | 'postman' | 'share'
 
-const DBEAVER_PATH = '%APPDATA%\\DBeaverData\\workspace6\\General\\.dbeaver'
+const DBEAVER_PATH = '%APPDATA%\\DBeaverData\\workspace6'
 
 const dupKey = (e: Entry) => `${e.type}|${e.title.toLowerCase()}|${e.environment}`
 
@@ -87,28 +88,50 @@ function ToolImport({
   onImport: (entries: Entry[]) => Promise<void>
   toast: (m: string) => void
 }) {
-  const [parsed, setParsed] = useState<{ entries: Entry[]; envs: Entry[]; notes: string[] } | null>(null)
+  const [parsed, setParsed] = useState<Parsed | null>(null)
   const [envIdx, setEnvIdx] = useState(-1)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // DBeaver: one batch per project (files picked together / one .dbeaver folder)
+  const [batches, setBatches] = useState<DbBatch[]>([])
 
   const existingKeys = useMemo(() => new Set(existing.map(dupKey)), [existing])
 
-  async function readFiles(files: FileList | null) {
-    if (!files?.length) return
+  async function run(fn: () => Promise<Parsed>) {
     setError('')
     setBusy(true)
     try {
-      const res = source === 'dbeaver' ? await parseDbeaver([...files]) : await parsePostman([...files])
-      setParsed(res)
+      setParsed(await fn())
       setEnvIdx(-1)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
-      setParsed(null)
     } finally {
       setBusy(false)
     }
+  }
+
+  async function readFiles(list: FileList | null) {
+    if (!list?.length) return
+    const files = [...list]
+    if (source === 'postman') return run(() => parsePostman(files))
+    const next = [...batches, ...groupDbeaverFiles(files, batches.length)]
+    if (next.length === batches.length) {
+      setError('ไม่พบ data-sources.json ในที่ที่เลือก')
+      return
+    }
+    await run(async () => {
+      const res = await parseDbeaver(next)
+      setBatches(next)
+      return res
+    })
+  }
+
+  async function removeBatch(i: number) {
+    const next = batches.filter((_, j) => j !== i)
+    setBatches(next)
+    if (next.length) await run(() => parseDbeaver(next))
+    else setParsed(null)
   }
 
   // what will actually be imported, after optional env substitution
@@ -138,16 +161,19 @@ function ToolImport({
       {source === 'dbeaver' ? (
         <ol className="howto">
           <li>
-            เปิดโฟลเดอร์นี้ใน File Explorer (วางในช่อง address แล้วกด Enter)
+            โฟลเดอร์ของ DBeaver อยู่ที่ (วางในช่อง address ของ File Explorer ได้)
             <span className="path">
               <code>{DBEAVER_PATH}</code>
               <CopyButton value={DBEAVER_PATH} label="path" onCopied={toast} />
             </span>
           </li>
           <li>
-            เลือก <b>data-sources.json</b> และ <b>credentials-config.json</b> พร้อมกัน (กด Ctrl ค้างแล้วคลิกทั้งสองไฟล์)
+            <b>ง่ายสุด:</b> กด “เลือกโฟลเดอร์ workspace6” แล้วเลือกโฟลเดอร์ <code>workspace6</code> ระบบจะดึง<b>ทุกโปรเจกต์</b> (General, TLI DB, …) ให้เอง
           </li>
-          <li>ไฟล์ credentials เก็บ user/password ไว้ ถ้าไม่เลือกมาจะได้แค่ host/port/database</li>
+          <li>
+            หรือเลือกไฟล์ทีละโปรเจกต์: แต่ละโปรเจกต์อยู่ที่ <code>workspace6\ชื่อโปรเจกต์\.dbeaver</code> เลือก <b>data-sources.json</b> + <b>credentials-config.json</b> พร้อมกัน แล้วกดเพิ่มโปรเจกต์ถัดไปได้เรื่อยๆ
+          </li>
+          <li>ไฟล์ credentials เก็บ user/password ไว้ ถ้าไม่มีจะได้แค่ host/port/database</li>
         </ol>
       ) : (
         <ol className="howto">
@@ -167,11 +193,53 @@ function ToolImport({
         </ol>
       )}
 
-      <label className="dropzone">
-        {busy ? <Loader2 className="spin" /> : <FileUp />}
-        <span>{source === 'dbeaver' ? 'เลือก data-sources.json + credentials-config.json' : 'เลือกไฟล์ .json ที่ export จาก Postman'}</span>
-        <input type="file" multiple accept=".json,application/json" onChange={(e) => readFiles(e.target.files)} />
-      </label>
+      <div className="drop-row">
+        {source === 'dbeaver' && (
+          <label className="dropzone primary">
+            {busy ? <Loader2 className="spin" /> : <FolderOpen />}
+            <span>เลือกโฟลเดอร์ workspace6 (ทุกโปรเจกต์)</span>
+            <input
+              type="file"
+              {...{ webkitdirectory: '', directory: '' }}
+              onChange={(e) => {
+                void readFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
+          </label>
+        )}
+        <label className="dropzone">
+          {busy ? <Loader2 className="spin" /> : <FileUp />}
+          <span>
+            {source === 'dbeaver'
+              ? batches.length
+                ? '+ เพิ่มไฟล์จากโปรเจกต์อื่น'
+                : 'เลือกไฟล์ data-sources.json + credentials-config.json'
+              : 'เลือกไฟล์ .json ที่ export จาก Postman'}
+          </span>
+          <input
+            type="file"
+            multiple
+            accept=".json,application/json"
+            onChange={(e) => {
+              void readFiles(e.target.files)
+              e.target.value = ''
+            }}
+          />
+        </label>
+      </div>
+      {source === 'dbeaver' && batches.length > 0 && (
+        <div className="batches">
+          {batches.map((b, i) => (
+            <span key={i} className="batch">
+              <Database /> {b.label} · {b.count ?? '…'} connection{b.creds ? '' : ' (ไม่มีรหัสผ่าน)'}
+              <button className="icon-btn" aria-label={`เอา ${b.label} ออก`} onClick={() => removeBatch(i)}>
+                <X />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       {error && <p className="hint error">{error}</p>}
 
       {parsed && (
@@ -217,9 +285,7 @@ function ToolImport({
               dupIds={dupIds}
               subtitle={(e) =>
                 e.type === 'database'
-                  ? [e.values.host && `${e.values.host}${e.values.port ? ':' + e.values.port : ''}`, e.values.username, e.values.password ? '🔑' : '']
-                      .filter(Boolean)
-                      .join(' · ')
+                  ? [databaseSummary(e.values), e.values.username, e.values.password ? '🔑' : ''].filter(Boolean).join(' · ')
                   : e.values.description || e.values.project || ''
               }
               onToggle={(id) =>
@@ -259,27 +325,69 @@ async function readJson(f: File): Promise<unknown> {
   }
 }
 
-async function parseDbeaver(files: File[]) {
-  const credFile = files.find((f) => /credentials-config/i.test(f.name))
-  const dsFiles = files.filter((f) => f !== credFile)
-  if (!dsFiles.length) throw new Error('ต้องเลือก data-sources.json ด้วย')
-  let creds: DbeaverCreds = {}
-  const notes: string[] = []
-  if (credFile) {
-    creds = await decryptDbeaverCredentials(await credFile.arrayBuffer())
-    notes.push('ถอดรหัส credentials แล้ว')
-  } else notes.push('ไม่มี credentials-config.json จะไม่มี user/password')
-  const entries: Entry[] = []
-  for (const f of dsFiles) {
-    const json = await readJson(f)
-    if (!isDbeaverDataSources(json)) throw new Error(`${f.name} ไม่ใช่ไฟล์ data-sources ของ DBeaver`)
-    entries.push(...importDbeaver(json, creds))
+type Parsed = { entries: Entry[]; envs: Entry[]; notes: string[] }
+
+interface DbBatch {
+  label: string
+  dataSources: File[]
+  creds?: File
+  count?: number
+}
+
+/**
+ * Split picked files into DBeaver projects. With a folder pick, files carry
+ * paths like "workspace6/TLI DB/.dbeaver/data-sources.json"; with a plain file
+ * pick, everything picked together is one project.
+ */
+function groupDbeaverFiles(files: File[], existing: number): DbBatch[] {
+  const relevant = files.filter((f) => /^(data-sources.*\.json|credentials-config\.json)$/i.test(f.name))
+  const groups = new Map<string, File[]>()
+  for (const f of relevant) {
+    const rel = f.webkitRelativePath
+    if (rel && !/(^|\/)\.dbeaver\//.test(rel)) continue
+    const dir = rel ? rel.slice(0, rel.lastIndexOf('/')) : ''
+    groups.set(dir, [...(groups.get(dir) ?? []), f])
   }
-  notes.unshift(`พบ ${entries.length} connection`)
+  const out: DbBatch[] = []
+  for (const [dir, fs] of groups) {
+    const dataSources = fs.filter((f) => /^data-sources/i.test(f.name))
+    if (!dataSources.length) continue
+    const parts = dir.split('/')
+    const project = dir ? parts[parts.indexOf('.dbeaver') - 1] || parts[0] : ''
+    out.push({
+      label: project || `โปรเจกต์ที่ ${existing + out.length + 1}`,
+      dataSources,
+      creds: fs.find((f) => /credentials-config/i.test(f.name)),
+    })
+  }
+  return out
+}
+
+async function parseDbeaver(batches: DbBatch[]): Promise<Parsed> {
+  const entries: Entry[] = []
+  const notes: string[] = []
+  for (const b of batches) {
+    let creds: DbeaverCreds = {}
+    if (b.creds) {
+      try {
+        creds = await decryptDbeaverCredentials(await b.creds.arrayBuffer())
+      } catch (e) {
+        throw new Error(`${b.label}: ${e instanceof Error ? e.message : e}`)
+      }
+    }
+    const before = entries.length
+    for (const f of b.dataSources) {
+      const json = await readJson(f)
+      if (!isDbeaverDataSources(json)) throw new Error(`${b.label}: ${f.name} ไม่ใช่ไฟล์ data-sources ของ DBeaver`)
+      entries.push(...importDbeaver(json, creds, b.label.startsWith('โปรเจกต์ที่') ? '' : b.label))
+    }
+    b.count = entries.length - before
+  }
+  notes.push(`${batches.length} โปรเจกต์`, `พบ ${entries.length} connection`)
   return { entries, envs: [], notes }
 }
 
-async function parsePostman(files: File[]) {
+async function parsePostman(files: File[]): Promise<Parsed> {
   const entries: Entry[] = []
   const envs: Entry[] = []
   let cols = 0

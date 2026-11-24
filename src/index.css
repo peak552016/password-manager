@@ -692,3 +692,10 @@ html.theme-anim, html.theme-anim * { transition: background-color 0.35s ease, bo
 select { font: inherit; font-size: 14px; padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); }
 .embedded-title { font-size: 17px; margin-bottom: 14px; }
 .dropzone svg { width: 20px; height: 20px; color: var(--accent); }
+.drop-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.dropzone.primary { border-style: solid; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent-soft); color: var(--text); font-weight: 500; }
+.batches { display: flex; flex-wrap: wrap; gap: 8px; }
+.batch { display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line-strong); font-size: 13.5px; animation: pop 0.35s var(--spring) both; }
+.batch > svg { width: 15px; height: 15px; color: #16a34a; }
+.batch .icon-btn { width: 26px; height: 26px; }
+.batch .icon-btn svg { width: 14px; height: 14px; }

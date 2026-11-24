@@ -11,6 +11,7 @@ import { ShareExport } from './Share'
 import { ImportTools } from './ImportTools'
 import { EnvBadge, Kbd, Toast, TypeIcon } from './ui'
 import { useToast } from '../lib/useToast'
+import { databaseSummary, shortHost } from '../lib/format'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
 
 type Pane =
@@ -351,6 +352,10 @@ function EmptyPane({ total, onNew }: { total: number; onNew: () => void }) {
 
 function subtitle(i: DecryptedItem): string {
   const t = typeOf(i.type)
+  if (i.type === 'database' || i.type === 'server') {
+    const s = i.type === 'database' ? databaseSummary(i.values) : [i.values.username, i.values.host && shortHost(i.values.host)].filter(Boolean).join('@')
+    if (s) return s
+  }
   for (const f of t.fields) if (f.subtitle && i.values[f.key]) return i.values[f.key]
   const url = i.values.url
   if (url) {

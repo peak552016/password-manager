@@ -1,5 +1,5 @@
 // Offline support: cache the app shell. The vault itself lives in IndexedDB, never here.
-const CACHE = 'vault-v2'
+const CACHE = 'vault-v3'
 const SHELL = new URL('./', self.location).href
 
 self.addEventListener('install', (e) => {

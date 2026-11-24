@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Check, Copy, Eye, EyeOff } from 'lucide-react'
 import { copySecret } from '../lib/clipboard'
 import { typeOf } from '../lib/types'
+import { envSlug } from '../lib/env'
 
 export function TypeIcon({ type, size = 'md' }: { type: string; size?: 'sm' | 'md' | 'lg' }) {
   const t = typeOf(type)
@@ -13,7 +14,7 @@ export function TypeIcon({ type, size = 'md' }: { type: string; size?: 'sm' | 'm
 }
 
 export function EnvBadge({ env }: { env: string }) {
-  return <span className={`env env-${env.toLowerCase().replace(/[^a-z0-9]/g, '')}`}>{env}</span>
+  return <span className={`env env-${envSlug(env)}`}>{env}</span>
 }
 
 /** Copy with a short check-mark animation; clipboard is wiped after 30 s. */

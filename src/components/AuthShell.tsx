@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ShieldCheck } from 'lucide-react'
+import { ThemeSwitch } from './ThemeSwitch'
 
 /** Shared frame for setup / unlock / restore screens. */
 export function AuthShell({ title, subtitle, children, shake }: { title: string; subtitle?: ReactNode; children: ReactNode; shake?: number }) {
@@ -10,6 +11,7 @@ export function AuthShell({ title, subtitle, children, shake }: { title: string;
         <span className="blob b2" />
         <span className="grid" />
       </div>
+      <ThemeSwitch className="auth-theme" />
       <div className="auth-card" key={shake} data-shake={shake ? '' : undefined}>
         <div className="auth-mark">
           <ShieldCheck strokeWidth={1.6} />

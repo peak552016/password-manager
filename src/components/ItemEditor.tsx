@@ -3,7 +3,7 @@ import { Plus, RefreshCw, X, Lock, Unlock as UnlockIcon } from 'lucide-react'
 import { EMPTY_ENTRY, type CustomField, type Entry } from '../lib/vault'
 import { DEFAULT_GEN, estimateBits, generatePassword, type GenOptions } from '../lib/generator'
 import { typeOf, type FieldDef } from '../lib/types'
-import { ENVIRONMENTS } from '../lib/env'
+import { ENVIRONMENTS, envSlug } from '../lib/env'
 import { Strength } from './Strength'
 import { RevealButton, TypeIcon } from './ui'
 
@@ -77,7 +77,7 @@ export function ItemEditor({ initial, type, onSave, onCancel }: Props) {
                 <button
                   key={env}
                   type="button"
-                  className={`env-opt env-${env.toLowerCase()}`}
+                  className={`env-opt env-${envSlug(env)}`}
                   aria-pressed={entry.environment === env}
                   onClick={() => patch({ environment: entry.environment === env ? '' : env })}
                 >

@@ -9,6 +9,7 @@ import { Settings } from './Settings'
 import { TypePicker } from './TypePicker'
 import { EnvBadge, Kbd, Toast, TypeIcon } from './ui'
 import { useToast } from '../lib/useToast'
+import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
 
 type Pane =
   | { kind: 'empty' }
@@ -217,6 +218,8 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         </nav>
 
         <div className="sidebar-foot">
+          <ThemeSwitch />
+          <ThemeCycle />
           <button className="nav-item" aria-current={pane.kind === 'settings'} onClick={() => setPane({ kind: 'settings' })}>
             <SettingsIcon className="nav-ic" />
             <span>ตั้งค่า</span>

@@ -33,12 +33,17 @@ export async function createShare(
   password: string,
   name: string,
   kdf: Partial<typeof DEFAULT_KDF> = {},
+  /** own backups keep favourites */
+  keepFavorites = false,
 ): Promise<ShareFile> {
   const params = newKdfParams(kdf)
   const kek = await deriveKek(password, params)
   const key = await generateVaultKey()
   // favourites are personal; don't carry them over
-  const clean = entries.map((e) => ({ ...normalizeEntry(e as Entry & Record<string, unknown>), favorite: false }))
+  const clean = entries.map((e) => {
+    const n = normalizeEntry(e as Entry & Record<string, unknown>)
+    return keepFavorites ? n : { ...n, favorite: false }
+  })
   return {
     format: 'pm-share',
     version: 1,

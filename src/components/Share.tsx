@@ -1,6 +1,8 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { AlertTriangle, CheckCircle2, Database, Download, FileArchive, FileJson, FileSpreadsheet, FileUp, Loader2, Lock, RefreshCw, Send, Share2, Upload, X } from 'lucide-react'
-import type { DecryptedItem, Entry } from '../lib/vault'
+import { AlertTriangle, CheckCircle2, Database, Download, FileArchive, HardDriveDownload, FileJson, FileSpreadsheet, FileUp, Loader2, Lock, RefreshCw, Send, Share2, Upload, X } from 'lucide-react'
+import { readBackupEntries, exportBackup, unlock, WrongPasswordError, type Backup, type DecryptedItem, type Entry } from '../lib/vault'
+import { TYPES } from '../lib/types'
+import { ENVIRONMENTS } from '../lib/env'
 import { passwordZip } from '../lib/zip'
 import { packFile, unpackFile } from '../lib/container'
 import { toDbeaver, toPlainCsv, toPlainJson, toPostmanEnvironment, type ExportFile } from '../lib/exporters'
@@ -34,7 +36,8 @@ const slug = (s: string) =>
 // Export
 // ---------------------------------------------------------------------------
 
-type Mode = 'vault' | 'plain'
+type Mode = 'vault' | 'plain' | 'backup'
+type Scope = 'all' | 'type' | 'collection' | 'env' | 'pick'
 type Format = 'dbeaver' | 'postman' | 'csv' | 'json'
 
 const FORMATS: { id: Format; label: string; hint: string; Icon: typeof Lock; color: string; accepts?: string[] }[] = [
@@ -71,7 +74,10 @@ export function ShareExport({
   const [mode, setMode] = useState<Mode>('vault')
   const [formats, setFormats] = useState<Set<Format>>(() => new Set(['dbeaver']))
   const [winZip, setWinZip] = useState(false)
-  const [done, setDone] = useState<{ file: string; count: number; files?: ExportFile[] } | null>(null)
+  const [scope, setScope] = useState<Scope>('all')
+  const [scopeVals, setScopeVals] = useState<Set<string>>(new Set())
+  const [master, setMaster] = useState('')
+  const [done, setDone] = useState<{ file: string; count: number; files?: ExportFile[]; backup?: boolean } | null>(null)
 
   const toggle = (id: string) =>
     setSelected((s) => {
@@ -88,7 +94,23 @@ export function ShareExport({
       return n
     })
 
-  const chosen = items.filter((i) => selected.has(i.id))
+  const inScope = (i: DecryptedItem) =>
+    scope === 'all'
+      ? true
+      : scope === 'pick'
+        ? selected.has(i.id)
+        : scopeVals.has(scope === 'type' ? i.type : scope === 'collection' ? i.collection : i.environment)
+  const chosen = items.filter((i) => (mode === 'backup' ? inScope(i) : selected.has(i.id)))
+  const scopeOptions: { v: string; label: string; n: number }[] =
+    scope === 'type'
+      ? TYPES.map((t) => ({ v: t.id, label: t.label, n: items.filter((i) => i.type === t.id).length }))
+      : scope === 'collection'
+        ? [...new Set(items.map((i) => i.collection))].sort().map((c) => ({ v: c, label: c || 'ไม่มีหมวด', n: items.filter((i) => i.collection === c).length }))
+        : scope === 'env'
+          ? [...new Set(items.map((i) => i.environment))]
+              .sort((a, b) => (ENVIRONMENTS.indexOf(a) + 1 || 99) - (ENVIRONMENTS.indexOf(b) + 1 || 99))
+              .map((e) => ({ v: e, label: e || 'ไม่ระบุ', n: items.filter((i) => i.environment === e).length }))
+          : []
 
   async function doExport() {
     const stamp = new Date().toISOString().slice(0, 10)
@@ -96,6 +118,16 @@ export function ShareExport({
     setError('')
     try {
       const entries = chosen.map(toEntry)
+      if (mode === 'backup') {
+        // locked with the master password, so it is checked first
+        await unlock(master)
+        const file = `vault-${scope === 'all' ? 'backup' : slug(name.trim() || [...scopeVals].join(' ') || 'selected')}-${stamp}.vault`
+        const data = scope === 'all' ? await exportBackup() : await createShare(entries, master, name.trim() || 'สำรองบางส่วน', {}, true)
+        save(await packFile(data), file)
+        setMaster('')
+        setDone({ file, count: entries.length, backup: true })
+        return
+      }
       if (mode === 'vault') {
         const share = await createShare(entries, password, name.trim())
         const file = `vault-share-${slug(name)}-${stamp}.vshare`
@@ -118,11 +150,35 @@ export function ShareExport({
       save(await passwordZip(files, password, winZip), file)
       setDone({ file, count: entries.length, files })
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(e instanceof WrongPasswordError ? 'master password ไม่ถูกต้อง' : e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
   }
+
+  if (done?.backup)
+    return (
+      <div className="pane-inner">
+        <div className="share-done">
+          <CheckCircle2 className="big-check" />
+          <h2>สำรอง {done.count} รายการแล้ว</h2>
+          <p className="muted">
+            ไฟล์ <code>{done.file}</code> อยู่ในโฟลเดอร์ Downloads
+          </p>
+          <p className="muted">
+            เปิดได้เฉพาะแอพนี้ด้วย master password ของคุณ ·{' '}
+            {scope === 'all' ? 'กู้คืนทั้งคลังได้ที่ ตั้งค่า → กู้คืน หรือเลือกบางรายการที่ นำเข้า → ไฟล์ Vault' : 'นำเข้าได้ที่ นำเข้า → ไฟล์ Vault'}
+          </p>
+          <p className="share-tip">
+            <AlertTriangle />
+            <span>เก็บไฟล์ไว้นอกเครื่องนี้ด้วย เช่น OneDrive หรือ USB ถ้าเครื่องเสียจะได้กู้คืนได้</span>
+          </p>
+          <button className="btn" onClick={onClose}>
+            เสร็จแล้ว
+          </button>
+        </div>
+      </div>
+    )
 
   if (done)
     return (
@@ -177,7 +233,8 @@ export function ShareExport({
     )
 
   const plainCount = mode === 'plain' ? chosen.filter((i) => [...formats].some((f) => !FORMATS.find((x) => x.id === f)!.accepts || FORMATS.find((x) => x.id === f)!.accepts!.includes(i.type))).length : 0
-  const canExport = chosen.length > 0 && password.length >= 8 && !busy && (mode === 'vault' || (formats.size > 0 && plainCount > 0))
+  const canExport =
+    chosen.length > 0 && !busy && (mode === 'backup' ? master.length > 0 : password.length >= 8 && (mode === 'vault' || (formats.size > 0 && plainCount > 0)))
 
   return (
     <div className="pane-inner">
@@ -188,7 +245,7 @@ export function ShareExport({
           </span>
           <div>
             <p className="eyebrow">ส่งออก</p>
-            <h2>{mode === 'vault' ? 'ไฟล์แชร์ Vault' : 'ไฟล์ใช้งานได้เลย'}</h2>
+            <h2>{mode === 'vault' ? 'ไฟล์แชร์ Vault' : mode === 'plain' ? 'ไฟล์ใช้งานได้เลย' : 'สำรองเป็นไฟล์ .vault'}</h2>
           </div>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="ปิด">
@@ -207,6 +264,11 @@ export function ShareExport({
             <FileArchive />
             <strong>ไฟล์ใช้งานได้เลย</strong>
             <small>DBeaver / Postman / CSV / JSON ใส่ใน ZIP ที่ล็อกด้วยรหัส</small>
+          </button>
+          <button type="button" className="mode-opt" aria-pressed={mode === 'backup'} onClick={() => setMode('backup')} style={{ '--c': '#5a6cf6' } as CSSProperties}>
+            <HardDriveDownload />
+            <strong>สำรอง .vault</strong>
+            <small>ไฟล์ binary ของตัวเอง ล็อกด้วย master password นำเข้ากลับมาได้ครบ</small>
           </button>
         </div>
 
@@ -232,6 +294,93 @@ export function ShareExport({
           </div>
         )}
 
+        {mode === 'backup' ? (
+          <>
+            <div className="form-row">
+              <span className="form-label">เอาอะไรบ้าง</span>
+              <div className="coll-picker">
+                {(
+                  [
+                    ['all', 'ทั้งหมด (ทุกประเภท ทุกหมวด + การตั้งค่า)'],
+                    ['type', 'ตามประเภท'],
+                    ['collection', 'ตามหมวด'],
+                    ['env', 'ตาม Environment'],
+                    ['pick', 'เลือกเอง'],
+                  ] as [Scope, string][]
+                ).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className="coll-opt"
+                    aria-pressed={scope === v}
+                    onClick={() => {
+                      setScope(v)
+                      setScopeVals(new Set())
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {scopeOptions.length > 0 && (
+                <div className="coll-picker scope-vals">
+                  {scopeOptions.map((o) => (
+                    <button
+                      key={o.v || '(none)'}
+                      type="button"
+                      className="coll-opt"
+                      aria-pressed={scopeVals.has(o.v)}
+                      disabled={!o.n}
+                      onClick={() =>
+                        setScopeVals((s) => {
+                          const n = new Set(s)
+                          if (n.has(o.v)) n.delete(o.v)
+                          else n.add(o.v)
+                          return n
+                        })
+                      }
+                    >
+                      {o.label} <small>{o.n}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {scope === 'all' && <p className="hint">ไฟล์นี้กู้คืนกลับมาได้เหมือนเดิมทุกอย่าง รวมหมวด รายการโปรด ธีม PIN</p>}
+            </div>
+
+            {scope !== 'all' && (
+              <label className="form-row">
+                <span className="form-label">ชื่อไฟล์</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น TLI DB" />
+              </label>
+            )}
+
+            {scope === 'pick' && (
+              <div className="form-row">
+                <div className="pick-head">
+                  <span className="form-label">
+                    รายการ · เลือกแล้ว {selected.size} จาก {items.length}
+                  </span>
+                  <span>
+                    <button className="btn ghost sm" onClick={() => setSelected(new Set(items.map((i) => i.id)))}>
+                      เลือกทั้งหมด
+                    </button>
+                    <button className="btn ghost sm" onClick={() => setSelected(new Set())}>
+                      ล้าง
+                    </button>
+                  </span>
+                </div>
+                <ItemPicker items={items} selected={selected} onToggle={toggle} />
+              </div>
+            )}
+
+            <label className="form-row">
+              <span className="form-label">ยืนยัน master password (ใช้ล็อกไฟล์นี้)</span>
+              <input type="password" value={master} onChange={(e) => setMaster(e.target.value)} autoComplete="current-password" />
+            </label>
+          </>
+        ) : (
+          <>
         <label className="form-row">
           <span className="form-label">{mode === 'vault' ? 'ชื่อชุด (ผู้รับจะเห็น)' : 'ชื่อไฟล์ / ชื่อ environment'}</span>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น Claim API – UAT" />
@@ -278,10 +427,13 @@ export function ShareExport({
           )}
         </div>
 
+          </>
+        )}
+
         {error && <p className="hint error">{error}</p>}
         <div>
           <button className="btn primary" disabled={!canExport} onClick={doExport}>
-            {busy ? <Loader2 className="spin" /> : <Download />} ส่งออก {(mode === 'vault' ? selected.size : plainCount) || ''} รายการ
+            {busy ? <Loader2 className="spin" /> : <Download />} {mode === 'backup' ? 'สำรอง' : 'ส่งออก'} {(mode === 'plain' ? plainCount : chosen.length) || ''} รายการ
           </button>
           {mode === 'plain' && plainCount < selected.size && (
             <p className="hint">บางรายการไม่เข้ากับรูปแบบที่เลือก (DBeaver ใช้ได้กับ Database, Postman ใช้ได้กับ .env / API / Token)</p>
@@ -331,8 +483,14 @@ export function ShareImport({
       } catch {
         throw new Error('อ่านไฟล์ไม่ได้')
       }
-      if (!isShareFile(parsed)) throw new Error('ไฟล์นี้ไม่ใช่ไฟล์แชร์ของ Vault (ถ้าเป็นไฟล์สำรองทั้งคลัง ให้กู้คืนจากหน้าตั้งค่า)')
-      const res = await openShare(parsed as ShareFile, pw)
+      let res: { name: string; entries: Entry[] }
+      if (isShareFile(parsed)) res = await openShare(parsed as ShareFile, pw)
+      else if ((parsed as Backup)?.format === 'pm-backup')
+        res = {
+          name: `ไฟล์สำรองทั้งคลัง ${new Date((parsed as Backup).exportedAt).toLocaleDateString('th-TH')}`,
+          entries: await readBackupEntries(parsed as Backup, pw),
+        }
+      else throw new Error('ไฟล์นี้ไม่ใช่ไฟล์ของ Vault')
       const entries = res.entries.map((e) => ({ ...e, dup: existingKeys.has(`${e.type}|${e.title.toLowerCase()}|${e.environment}`) }))
       setOpened({ name: res.name, entries })
       setSelected(new Set(entries.flatMap((e, i) => (e.dup ? [] : [String(i)]))))
@@ -381,12 +539,12 @@ export function ShareImport({
         <div className="form-body">
           <label className="dropzone">
             <FileUp />
-            <span>{file ? file.name : 'เลือกไฟล์ vault-share-….vshare'}</span>
+            <span>{file ? file.name : 'เลือกไฟล์ .vshare หรือ .vault'}</span>
             <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
           <input
             className="mono"
-            placeholder="รหัสแชร์ เช่น k7Fq-29xM-pR4t-Wz8n"
+            placeholder="รหัสแชร์ หรือ master password ของไฟล์ .vault"
             value={pw}
             onChange={(e) => setPw(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && open()}

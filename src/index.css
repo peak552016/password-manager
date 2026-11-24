@@ -842,3 +842,10 @@ body.resizing .list li { animation: none; }
 .banner.access { background: rgb(96 165 250 / 0.12); color: #60a5fa; }
 .banner svg { width: 17px; height: 17px; flex: none; }
 .env-opt.access-opt { --ec: #60a5fa; }
+.mode-grid { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1080px) { .mode-grid { grid-template-columns: 1fr; } }
+.scope-vals { margin-top: 10px; }
+.coll-opt small { font-family: var(--mono); }
+.coll-opt:disabled { opacity: 0.4; cursor: default; }
+.pin-input.pw { letter-spacing: normal; font-size: 16px !important; }
+.pin-input::placeholder { letter-spacing: normal; font-family: var(--sans, inherit); font-size: 15px; }

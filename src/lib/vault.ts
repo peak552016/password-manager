@@ -234,6 +234,17 @@ export async function exportBackup(): Promise<Backup> {
   return { format: 'pm-backup', version: 1, exportedAt: Date.now(), account, items: await db.allItems(), prefs: readPrefs(account.vaults[0]?.id ?? '') }
 }
 
+/** Decrypts the entries of a backup file without touching local data (for merging). */
+export async function readBackupEntries(backup: Backup, password: string): Promise<Entry[]> {
+  if (backup?.format !== 'pm-backup' || backup.version !== 1) throw new Error('ไฟล์สำรองไม่ถูกต้อง')
+  const session = await unlockAccount(backup.account, password)
+  return Promise.all(
+    backup.items
+      .filter((r) => r.vaultId === session.vaultId)
+      .map(async (r) => normalizeEntry(await decryptJson<Partial<Entry> & Record<string, unknown>>(session.key, r.data, aad(r.vaultId, r.id)))),
+  )
+}
+
 /** Verifies the password against the backup before overwriting local data. */
 export async function importBackup(backup: Backup, password: string): Promise<Session> {
   if (backup?.format !== 'pm-backup' || backup.version !== 1) throw new Error('ไฟล์สำรองไม่ถูกต้อง')

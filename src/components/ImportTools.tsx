@@ -41,7 +41,7 @@ export function ImportTools({
   const tabs: { id: Source; label: string; Icon: typeof Database; color: string }[] = [
     { id: 'dbeaver', label: 'DBeaver', Icon: Database, color: '#16a34a' },
     { id: 'postman', label: 'Postman', Icon: Send, color: '#ff6c37' },
-    { id: 'share', label: 'ไฟล์แชร์ Vault', Icon: Share2, color: '#5a6cf6' },
+    { id: 'share', label: 'ไฟล์ Vault (.vault / .vshare)', Icon: Share2, color: '#5a6cf6' },
   ]
 
   return (

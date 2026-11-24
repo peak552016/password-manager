@@ -27,7 +27,7 @@ type Pane =
   | { kind: 'settings' }
   | { kind: 'share'; ids: string[] }
   | { kind: 'import' }
-  | { kind: 'pin' }
+  | { kind: 'pin'; next?: Pane }
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 const MOD = isMac ? '⌘' : 'Ctrl'
@@ -49,6 +49,8 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   /** PIN entered: list everything until lock */
   const [showAll, setShowAll] = useState(false)
   const [pinFails, setPinFails] = useState(0)
+  /** PIN given once this unlock: import / export / settings open freely */
+  const [pinOk, setPinOk] = useState(false)
   const query = searchFirst ? submitted : draft
   const pending = searchFirst && draft.trim() !== '' && draft !== submitted
   const runSearch = () => setSubmitted(draft)
@@ -133,6 +135,9 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       })
       .sort((a, b) => Number(b.favorite) - Number(a.favorite))
   }, [items, query, typeFilter, envFilter, collFilter])
+
+  // import, export and settings sit behind the PIN (asked once per unlock)
+  const guarded = (next: Pane) => setPane(pinOk ? next : { kind: 'pin', next })
 
   const toggle = (key: string, isOpen: boolean) => setToggled((m) => new Map(m).set(key, !isOpen))
 
@@ -228,7 +233,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
           onEdit={() => setPane({ kind: 'edit', id: selected.id })}
           onDelete={() => onDelete(selected.id)}
           onToggleFavorite={() => toggleFavorite(selected)}
-          onShare={() => setPane({ kind: 'share', ids: [selected.id] })}
+          onShare={() => guarded({ kind: 'share', ids: [selected.id] })}
           toast={setToast}
         />
       )
@@ -263,10 +268,15 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             setPinFails(n)
             if (n >= PIN_MAX_TRIES) onLock()
           }}
+          title={pane.next ? 'ใส่ PIN ก่อนเข้าหน้านี้' : undefined}
           onOk={() => {
             setPinFails(0)
-            setShowAll(true)
-            setPane({ kind: 'empty' })
+            setPinOk(true)
+            if (pane.next) setPane(pane.next)
+            else {
+              setShowAll(true)
+              setPane({ kind: 'empty' })
+            }
           }}
           onCancel={() => setPane({ kind: 'empty' })}
         />
@@ -358,12 +368,13 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             <button
               className="nav-item reveal"
               aria-pressed={showAll}
-              aria-current={pane.kind === 'pin'}
+              aria-current={pane.kind === 'pin' && !pane.next}
               onClick={() => {
                 if (showAll) {
                   setShowAll(false)
                   if (!query.trim() && pane.kind === 'detail') setPane({ kind: 'empty' })
-                } else setPane({ kind: 'pin' })
+                } else if (pinOk) setShowAll(true)
+                else setPane({ kind: 'pin' })
               }}
               title={showAll ? 'กลับไปซ่อนรายการ' : 'ใส่ PIN เพื่อดูรายการทั้งหมด'}
             >
@@ -376,18 +387,18 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             className="nav-item"
             aria-current={pane.kind === 'share'}
             onClick={() =>
-              setPane({ kind: 'share', ids: typeFilter === 'all' && !envFilter && !query && collFilter === null ? [] : filtered.map((i) => i.id) })
+              guarded({ kind: 'share', ids: typeFilter === 'all' && !envFilter && !query && collFilter === null ? [] : filtered.map((i) => i.id) })
             }
           >
             <Share2 className="nav-ic" />
             <span>ส่งออก / แชร์</span>
           </button>
-          <button className="nav-item" aria-current={pane.kind === 'import'} onClick={() => setPane({ kind: 'import' })}>
+          <button className="nav-item" aria-current={pane.kind === 'import' || (pane.kind === 'pin' && pane.next?.kind === 'import')} onClick={() => guarded({ kind: 'import' })}>
             <Download className="nav-ic" />
             <span>นำเข้า</span>
           </button>
           <ThemeCycle />
-          <button className="nav-item" aria-current={pane.kind === 'settings'} onClick={() => setPane({ kind: 'settings' })}>
+          <button className="nav-item" aria-current={pane.kind === 'settings' || (pane.kind === 'pin' && pane.next?.kind === 'settings')} onClick={() => guarded({ kind: 'settings' })}>
             <SettingsIcon className="nav-ic" />
             <span>ตั้งค่า</span>
           </button>

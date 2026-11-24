@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Download, Layers, Lock, Plus, Search, Settings as SettingsIcon, Share2, ShieldCheck, Star } from 'lucide-react'
+import { ChevronRight, Download, Folder, FolderOpen, Layers, Lock, Plus, Search, Settings as SettingsIcon, Share2, ShieldCheck, Star } from 'lucide-react'
 import { deleteEntry, listEntries, saveEntry, type DecryptedItem, type Entry, type Session } from '../lib/vault'
 import { TYPES, typeOf } from '../lib/types'
 import { ENVIRONMENTS } from '../lib/env'
@@ -9,7 +9,8 @@ import { Settings } from './Settings'
 import { TypePicker } from './TypePicker'
 import { ShareExport } from './Share'
 import { ImportTools } from './ImportTools'
-import { EnvBadge, Kbd, Toast, TypeIcon } from './ui'
+import { EnvBadge, ItemIcon, Kbd, Toast } from './ui'
+import { collectionsOf, groupRows } from '../lib/group'
 import { useToast } from '../lib/useToast'
 import { databaseSummary, shortHost } from '../lib/format'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
@@ -33,6 +34,10 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [envFilter, setEnvFilter] = useState('')
+  /** null = every หมวด, '' = items without one */
+  const [collFilter, setCollFilter] = useState<string | null>(null)
+  const [toggled, setToggled] = useState<Map<string, boolean>>(new Map())
+  const [listW, setListW] = useState(readListWidth)
   const [pane, setPane] = useState<Pane>({ kind: 'empty' })
   const [toast, setToast] = useToast()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -83,9 +88,18 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
     return [...ENVIRONMENTS.filter((e) => used.has(e)), ...[...used].filter((e) => !ENVIRONMENTS.includes(e)).sort()]
   }, [items])
 
+  const collections = useMemo(() => collectionsOf(items ?? []), [items])
+  const collCounts = useMemo(() => {
+    const c: Record<string, number> = {}
+    for (const i of items ?? []) c[i.collection] = (c[i.collection] ?? 0) + 1
+    return c
+  }, [items])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return (items ?? [])
+      // searching always looks through every หมวด
+      .filter((i) => q || collFilter === null || i.collection === collFilter)
       .filter((i) => typeFilter === 'all' || (typeFilter === 'fav' ? i.favorite : i.type === typeFilter))
       .filter((i) => !envFilter || i.environment === envFilter)
       .filter((i) => {
@@ -95,12 +109,30 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         const plain = t.fields
           .filter((f) => f.kind === 'text' || f.kind === 'mono' || f.kind === 'url')
           .map((f) => i.values[f.key] ?? '')
-        return [i.title, i.environment, i.knowledgeUrl, i.notes, t.label, ...plain, ...i.fields.map((f) => f.label)].some((s) =>
+        return [i.title, i.collection, i.environment, i.knowledgeUrl, i.notes, t.label, ...plain, ...i.fields.map((f) => f.label)].some((s) =>
           s.toLowerCase().includes(q),
         )
       })
       .sort((a, b) => Number(b.favorite) - Number(a.favorite))
-  }, [items, query, typeFilter, envFilter])
+  }, [items, query, typeFilter, envFilter, collFilter])
+
+  const toggle = (key: string, isOpen: boolean) => setToggled((m) => new Map(m).set(key, !isOpen))
+
+  const renderRow = (i: DecryptedItem, idx: number) => (
+    <li key={i.id} style={{ '--i': idx } as CSSProperties}>
+      <button className="list-item" aria-current={selectedId === i.id} onClick={() => setPane({ kind: 'detail', id: i.id })}>
+        <ItemIcon item={i} />
+        <span className="li-meta">
+          <strong>
+            {i.title || '(ไม่มีชื่อ)'}
+            {i.favorite && <Star className="li-star" />}
+          </strong>
+          <small>{subtitle(i)}</small>
+        </span>
+        {i.environment && <EnvBadge env={i.environment} />}
+      </button>
+    </li>
+  )
 
   const selectedId = pane.kind === 'detail' || pane.kind === 'edit' ? pane.id : null
   const selected = selectedId ? items?.find((i) => i.id === selectedId) : undefined
@@ -137,7 +169,16 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       paneContent = <TypePicker onPick={(type) => setPane({ kind: 'new', type })} onCancel={() => setPane({ kind: 'empty' })} />
       break
     case 'new':
-      paneContent = <ItemEditor key={`new-${pane.type}`} type={pane.type} onSave={(e) => onSave(e)} onCancel={() => setPane({ kind: 'pick' })} />
+      paneContent = (
+        <ItemEditor
+          key={`new-${pane.type}`}
+          type={pane.type}
+          collections={collections}
+          defaultCollection={collFilter ?? ''}
+          onSave={(e) => onSave(e)}
+          onCancel={() => setPane({ kind: 'pick' })}
+        />
+      )
       break
     case 'edit':
       paneContent = selected && (
@@ -145,6 +186,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
           key={`edit-${selected.id}`}
           type={selected.type}
           initial={selected}
+          collections={collections}
           onSave={(e) => onSave(e, selected.id)}
           onCancel={() => setPane({ kind: 'detail', id: selected.id })}
         />
@@ -192,7 +234,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   }
 
   return (
-    <div className={`shell ${pane.kind !== 'empty' ? 'has-pane' : ''}`}>
+    <div className={`shell ${pane.kind !== 'empty' ? 'has-pane' : ''}`} style={{ '--list-w': `${listW}px` } as CSSProperties}>
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">
@@ -206,8 +248,11 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             <button
               key={n.id}
               className="nav-item"
-              aria-current={typeFilter === n.id}
-              onClick={() => setTypeFilter(n.id)}
+              aria-current={typeFilter === n.id && (n.id !== 'all' || collFilter === null)}
+              onClick={() => {
+                setTypeFilter(n.id)
+                if (n.id === 'all') setCollFilter(null)
+              }}
               style={{ '--c': n.color } as CSSProperties}
             >
               <n.Icon className="nav-ic" />
@@ -215,6 +260,25 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
               <em>{counts[n.id] || ''}</em>
             </button>
           ))}
+          {collections.length > 0 && (
+            <>
+              <p className="nav-heading">หมวด</p>
+              {[...collections, ...(collCounts[''] ? [''] : [])].map((c) => (
+                <button
+                  key={c || '(none)'}
+                  className="nav-item coll"
+                  aria-current={collFilter === c}
+                  onClick={() => setCollFilter(collFilter === c ? null : c)}
+                  title={c || 'ไม่มีหมวด'}
+                  style={{ '--c': 'var(--accent)' } as CSSProperties}
+                >
+                  {collFilter === c ? <FolderOpen className="nav-ic" /> : <Folder className="nav-ic" />}
+                  <span>{c || 'ไม่มีหมวด'}</span>
+                  <em>{collCounts[c] || ''}</em>
+                </button>
+              ))}
+            </>
+          )}
           <p className="nav-heading">ประเภท</p>
           {TYPES.map((t) => (
             <button
@@ -248,7 +312,9 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
           <button
             className="nav-item"
             aria-current={pane.kind === 'share'}
-            onClick={() => setPane({ kind: 'share', ids: typeFilter === 'all' && !envFilter && !query ? [] : filtered.map((i) => i.id) })}
+            onClick={() =>
+              setPane({ kind: 'share', ids: typeFilter === 'all' && !envFilter && !query && collFilter === null ? [] : filtered.map((i) => i.id) })
+            }
           >
             <Share2 className="nav-ic" />
             <span>ส่งออกเพื่อแชร์</span>
@@ -271,6 +337,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       </aside>
 
       <section className="listpane">
+        <ResizeHandle width={listW} onChange={setListW} />
         <div className="list-head">
           <div className="search">
             <Search />
@@ -304,22 +371,71 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         ) : filtered.length === 0 ? (
           <p className="list-empty">{items.length ? 'ไม่พบรายการที่ตรงกัน' : 'ยังไม่มีรายการ'}</p>
         ) : (
-          <ul className="list" key={`${typeFilter}|${envFilter}`}>
-            {filtered.map((i, idx) => (
-              <li key={i.id} style={{ '--i': Math.min(idx, 12) } as CSSProperties}>
-                <button className="list-item" aria-current={selectedId === i.id} onClick={() => setPane({ kind: 'detail', id: i.id })}>
-                  <TypeIcon type={i.type} />
-                  <span className="li-meta">
-                    <strong>
-                      {i.title || '(ไม่มีชื่อ)'}
-                      {i.favorite && <Star className="li-star" />}
-                    </strong>
-                    <small>{subtitle(i)}</small>
-                  </span>
-                  {i.environment && <EnvBadge env={i.environment} />}
-                </button>
-              </li>
-            ))}
+          <ul className="list" key={`${typeFilter}|${envFilter}|${collFilter}`}>
+            {query.trim() && collections.length > 0 && <li className="list-note">ค้นหาจากทุกหมวด · พบ {filtered.length} รายการ</li>}
+            {sections(filtered, !query.trim() && collFilter === null && collections.length > 0).map((sec) => {
+              const secKey = `s:${sec.name}`
+              const secOpen = toggled.get(secKey) ?? true
+              let n = 0
+              return (
+                <li key={secKey} className="list-section" style={{ '--i': 0 } as CSSProperties}>
+                  {sec.header && (
+                    <button className="section-head" aria-expanded={secOpen} onClick={() => toggle(secKey, secOpen)}>
+                      <ChevronRight className="chev" />
+                      <Folder />
+                      <span>{sec.name || 'ไม่มีหมวด'}</span>
+                      <em>{sec.items.length}</em>
+                    </button>
+                  )}
+                  {secOpen && (
+                    <ul>
+                      {groupRows(sec.items).map((row) => {
+                        const idx = Math.min(n++, 12)
+                        if (row.kind === 'item') return renderRow(row.item, idx)
+                        const key = `${secKey}|${row.key}`
+                        const hasSel = row.items.some((i) => i.id === selectedId)
+                        const open = toggled.get(key) ?? (!!query.trim() || hasSel)
+                        return (
+                          <li key={key} className={`group ${open ? 'open' : ''}`} style={{ '--i': idx } as CSSProperties}>
+                            <button className="list-item group-head" aria-expanded={open} aria-current={!open && hasSel} onClick={() => toggle(key, open)}>
+                              <ItemIcon item={row.items[0]} />
+                              <span className="li-meta">
+                                <strong>
+                                  {row.name}
+                                  <span className="g-count">{row.items.length}</span>
+                                </strong>
+                                <span className="g-envs">
+                                  {row.items.map((i) => (i.environment ? <EnvBadge key={i.id} env={i.environment} /> : null))}
+                                </span>
+                              </span>
+                              <ChevronRight className="chev" />
+                            </button>
+                            {open && (
+                              <ul className="group-items">
+                                {row.items.map((i) => (
+                                  <li key={i.id}>
+                                    <button className="list-item child" aria-current={selectedId === i.id} onClick={() => setPane({ kind: 'detail', id: i.id })}>
+                                      {i.environment ? <EnvBadge env={i.environment} /> : <span className="env">—</span>}
+                                      <span className="li-meta">
+                                        <strong>
+                                          {subtitle(i)}
+                                          {i.favorite && <Star className="li-star" />}
+                                        </strong>
+                                        <small>{i.title}</small>
+                                      </span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -366,4 +482,77 @@ function subtitle(i: DecryptedItem): string {
     }
   }
   return t.label
+}
+
+/** Split the list by หมวด (named ones first, then "no หมวด") when browsing everything. */
+function sections(items: DecryptedItem[], byCollection: boolean) {
+  if (!byCollection) return [{ name: '', header: false, items }]
+  const map = new Map<string, DecryptedItem[]>()
+  for (const i of items) map.set(i.collection, [...(map.get(i.collection) ?? []), i])
+  return [...map.keys()]
+    .sort((a, b) => (!a ? 1 : !b ? -1 : a.localeCompare(b, 'th')))
+    .map((name) => ({ name, header: true, items: map.get(name)! }))
+}
+
+const LIST_W_KEY = 'vault-list-w'
+const LIST_W_DEFAULT = 340
+const clampListW = (w: number) => Math.round(Math.max(260, Math.min(w, 720, window.innerWidth - 420)))
+
+function readListWidth(): number {
+  try {
+    const v = Number(localStorage.getItem(LIST_W_KEY))
+    return v ? clampListW(v) : LIST_W_DEFAULT
+  } catch {
+    return LIST_W_DEFAULT
+  }
+}
+
+/** Drag the right edge of the list column; double-click resets. Width is remembered. */
+function ResizeHandle({ width, onChange }: { width: number; onChange: (w: number) => void }) {
+  const save = (w: number) => {
+    onChange(w)
+    try {
+      localStorage.setItem(LIST_W_KEY, String(w))
+    } catch {
+      /* private mode */
+    }
+  }
+  return (
+    <div
+      className="resize-handle"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="ปรับความกว้างรายการ"
+      aria-valuenow={width}
+      tabIndex={0}
+      title="ลากเพื่อปรับความกว้าง · ดับเบิลคลิกเพื่อคืนค่าเดิม"
+      onDoubleClick={() => save(LIST_W_DEFAULT)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft') save(clampListW(width - 20))
+        if (e.key === 'ArrowRight') save(clampListW(width + 20))
+      }}
+      onPointerDown={(e) => {
+        e.preventDefault()
+        const el = e.currentTarget
+        const left = el.parentElement!.getBoundingClientRect().left
+        el.setPointerCapture(e.pointerId)
+        document.body.classList.add('resizing')
+        let last = width
+        const move = (ev: PointerEvent) => {
+          last = clampListW(ev.clientX - left)
+          onChange(last)
+        }
+        const up = () => {
+          el.removeEventListener('pointermove', move)
+          el.removeEventListener('pointerup', up)
+          el.removeEventListener('pointercancel', up)
+          document.body.classList.remove('resizing')
+          save(last)
+        }
+        el.addEventListener('pointermove', move)
+        el.addEventListener('pointerup', up)
+        el.addEventListener('pointercancel', up)
+      }}
+    />
+  )
 }

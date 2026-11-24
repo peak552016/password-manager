@@ -4,6 +4,8 @@ import type { DecryptedItem, Entry } from '../lib/vault'
 import { createShare, generateSharePassword, openShare, isShareFile, type ShareFile } from '../lib/share'
 import { CopyButton } from './ui'
 import { ItemPicker } from './ItemPicker'
+import { CollectionPicker } from './CollectionPicker'
+import { collectionsOf } from '../lib/group'
 
 function toEntry(i: DecryptedItem): Entry {
   const e: Partial<DecryptedItem> = { ...i }
@@ -180,6 +182,7 @@ export function ShareImport({
   const [error, setError] = useState('')
   const [opened, setOpened] = useState<Opened | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [target, setTarget] = useState<string | null>(null)
 
   const existingKeys = useMemo(() => new Set(existing.map((e) => `${e.type}|${e.title.toLowerCase()}|${e.environment}`)), [existing])
 
@@ -209,7 +212,12 @@ export function ShareImport({
   async function doImport() {
     if (!opened) return
     setBusy(true)
-    await onImport(opened.entries.filter((_, i) => selected.has(String(i))).map(stripDup))
+    await onImport(
+      opened.entries
+        .filter((_, i) => selected.has(String(i)))
+        .map(stripDup)
+        .map((e) => ({ ...e, collection: target ?? (e.collection || opened.name) })),
+    )
   }
 
   const pickerItems = opened?.entries.map((e, i) => ({ ...e, id: String(i), updatedAt: 0 })) ?? []
@@ -260,6 +268,15 @@ export function ShareImport({
         </div>
       ) : (
         <div className="form-body">
+          <div className="form-row">
+            <span className="form-label">เก็บไว้ในหมวด</span>
+            <CollectionPicker
+              value={target}
+              onChange={setTarget}
+              options={collectionsOf(existing)}
+              auto={{ label: 'ตามไฟล์ที่ได้รับ', detail: collectionsOf(opened.entries.map((e) => ({ collection: e.collection || opened.name }))).join(', ') }}
+            />
+          </div>
           <div className="form-row">
             <span className="form-label">
               เลือกรายการที่จะเพิ่มลงคลัง · {selected.size} จาก {opened.entries.length}

@@ -2,7 +2,8 @@ import { useState, type ReactNode } from 'react'
 import { BookOpen, ChevronLeft, Clock, ExternalLink, Pencil, Share2, Star, Trash2 } from 'lucide-react'
 import type { DecryptedItem } from '../lib/vault'
 import { isSecretKind, typeOf, type FieldKind } from '../lib/types'
-import { CopyButton, EnvBadge, RevealButton, TypeIcon } from './ui'
+import { CopyButton, EnvBadge, ItemIcon, RevealButton } from './ui'
+import { dbEngine } from '../lib/format'
 
 interface Props {
   item: DecryptedItem
@@ -23,6 +24,7 @@ export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, o
   const [now] = useState(() => Date.now())
   const daysLeft = expires ? Math.ceil((expires.getTime() - now) / 86_400_000) : null
 
+  const engine = item.type === 'database' ? dbEngine(item.values) : null
   return (
     <div className="pane-inner detail" key={item.id}>
       <header className="pane-head">
@@ -30,9 +32,11 @@ export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, o
           <ChevronLeft />
         </button>
         <div className="head-title">
-          <TypeIcon type={item.type} size="lg" />
+          <ItemIcon item={item} size="lg" />
           <div>
-            <p className="eyebrow">{t.label}</p>
+            <p className="eyebrow">
+              {[t.label, engine?.label, item.collection && `หมวด ${item.collection}`].filter(Boolean).join(' · ')}
+            </p>
             <h2>
               {item.title || '(ไม่มีชื่อ)'} {item.environment && <EnvBadge env={item.environment} />}
             </h2>

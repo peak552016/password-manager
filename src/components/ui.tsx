@@ -3,12 +3,29 @@ import { Check, Copy, Eye, EyeOff } from 'lucide-react'
 import { copySecret } from '../lib/clipboard'
 import { typeOf } from '../lib/types'
 import { envSlug } from '../lib/env'
+import { dbEngine } from '../lib/format'
 
 export function TypeIcon({ type, size = 'md' }: { type: string; size?: 'sm' | 'md' | 'lg' }) {
   const t = typeOf(type)
   return (
     <span className={`type-icon ${size}`} style={{ '--c': t.color } as CSSProperties} aria-hidden>
       <t.Icon strokeWidth={1.8} />
+    </span>
+  )
+}
+
+/** Type icon, or for databases a coloured engine mark (PG, ORA, MY…). */
+export function ItemIcon({ item, size = 'md' }: { item: { type: string; values: Record<string, string> }; size?: 'sm' | 'md' | 'lg' }) {
+  const eng = item.type === 'database' ? dbEngine(item.values) : null
+  if (!eng) return <TypeIcon type={item.type} size={size} />
+  return (
+    <span
+      className={`type-icon engine ${size} len-${Math.min(eng.short.length, 4)}`}
+      style={{ '--c': eng.color } as CSSProperties}
+      title={eng.guessed ? `${eng.label} (เดาจาก port)` : eng.label}
+      aria-label={eng.label}
+    >
+      {eng.short}
     </span>
   )
 }

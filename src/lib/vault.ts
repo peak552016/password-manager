@@ -23,6 +23,8 @@ export interface Entry {
   /** one of TYPES[].id */
   type: string
   title: string
+  /** user-chosen group ("หมวด"), e.g. a project name; '' = none */
+  collection: string
   environment: string
   knowledgeUrl: string
   notes: string
@@ -36,6 +38,7 @@ export interface Entry {
 export const EMPTY_ENTRY: Entry = {
   type: 'login',
   title: '',
+  collection: '',
   environment: '',
   knowledgeUrl: '',
   notes: '',
@@ -56,6 +59,8 @@ export function normalizeEntry(raw: Partial<Entry> & Record<string, unknown>): E
   return {
     type: str(raw.type) || 'login',
     title: str(raw.title),
+    // older DBeaver imports recorded the project only in the notes
+    collection: str(raw.collection) || (str(raw.notes).match(/^DBeaver project: (.+)$/m)?.[1]?.trim() ?? ''),
     environment: str(raw.environment),
     knowledgeUrl: str(raw.knowledgeUrl),
     notes: str(raw.notes),

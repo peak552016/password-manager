@@ -5,6 +5,7 @@ import { DEFAULT_GEN, estimateBits, generatePassword, type GenOptions } from '..
 import { typeOf, type FieldDef } from '../lib/types'
 import { ENVIRONMENTS, envSlug } from '../lib/env'
 import { Strength } from './Strength'
+import { CollectionPicker } from './CollectionPicker'
 import { RevealButton, TypeIcon } from './ui'
 
 interface Props {
@@ -13,18 +14,22 @@ interface Props {
   type: string
   onSave: (e: Entry) => Promise<void>
   onCancel: () => void
+  /** existing หมวด names */
+  collections: string[]
+  /** หมวด for a new entry (the one open in the sidebar) */
+  defaultCollection?: string
 }
 
 const NO_AUTOFILL = { autoCapitalize: 'off', autoCorrect: 'off', autoComplete: 'off', spellCheck: false } as const
 
-export function ItemEditor({ initial, type, onSave, onCancel }: Props) {
+export function ItemEditor({ initial, type, onSave, onCancel, collections, defaultCollection = '' }: Props) {
   const t = typeOf(initial?.type ?? type)
   const [entry, setEntry] = useState<Entry>(() => {
     if (initial) return structuredClone(initial)
     const values: Record<string, string> = {}
     // new logins start with a strong generated password
     if (t.id === 'login') values.password = generatePassword(DEFAULT_GEN)
-    return { ...EMPTY_ENTRY, type: t.id, values }
+    return { ...EMPTY_ENTRY, type: t.id, values, collection: defaultCollection }
   })
   const [busy, setBusy] = useState(false)
 
@@ -69,6 +74,11 @@ export function ItemEditor({ initial, type, onSave, onCancel }: Props) {
       </header>
 
       <div className="form-body">
+        <div className="form-row">
+          <span className="form-label">หมวด</span>
+          <CollectionPicker value={entry.collection} onChange={(v) => patch({ collection: v ?? '' })} options={collections} />
+        </div>
+
         {t.technical && (
           <div className="form-row">
             <span className="form-label">Environment</span>

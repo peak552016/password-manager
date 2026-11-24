@@ -13,6 +13,8 @@ import {
   type DbeaverCreds,
 } from '../lib/importers'
 import { ItemPicker } from './ItemPicker'
+import { CollectionPicker } from './CollectionPicker'
+import { collectionsOf } from '../lib/group'
 import { databaseSummary } from '../lib/format'
 import { ShareImport } from './Share'
 import { CopyButton } from './ui'
@@ -93,6 +95,7 @@ function ToolImport({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [target, setTarget] = useState<string | null>(null)
   // DBeaver: one batch per project (files picked together / one .dbeaver folder)
   const [batches, setBatches] = useState<DbBatch[]>([])
 
@@ -266,6 +269,19 @@ function ToolImport({
           )}
 
           <div className="form-row">
+            <span className="form-label">เก็บไว้ในหมวด</span>
+            <CollectionPicker
+              value={target}
+              onChange={setTarget}
+              options={collectionsOf(existing)}
+              auto={{
+                label: source === 'dbeaver' ? 'ตามโปรเจกต์ DBeaver' : 'ตามชื่อ Collection',
+                detail: collectionsOf(finalEntries).join(', ') || 'ไม่มีชื่อ',
+              }}
+            />
+          </div>
+
+          <div className="form-row">
             <div className="pick-head">
               <span className="form-label">
                 เลือกแล้ว {selected.size} จาก {finalEntries.length}
@@ -305,7 +321,9 @@ function ToolImport({
               disabled={!selected.size || busy}
               onClick={async () => {
                 setBusy(true)
-                await onImport(finalEntries.filter((_, i) => selected.has(String(i))))
+                await onImport(
+                  finalEntries.filter((_, i) => selected.has(String(i))).map((e) => (target === null ? e : { ...e, collection: target })),
+                )
               }}
             >
               <Download /> เพิ่ม {selected.size} รายการลงคลัง
@@ -401,6 +419,9 @@ async function parsePostman(files: File[]): Promise<Parsed> {
     } else if (isPostmanEnvironment(json)) envs.push(importPostmanEnvironment(json))
     else throw new Error(`${f.name} ไม่ใช่ไฟล์ collection หรือ environment ของ Postman`)
   }
+  // with a single collection, its environments belong to it too
+  const only = new Set(entries.map((e) => e.collection))
+  if (cols === 1 && only.size === 1) for (const e of envs) if (!e.collection) e.collection = [...only][0]
   const notes = [`${cols} collection`, `${entries.length} request`, `${envs.length} environment`]
   return { entries, envs, notes }
 }

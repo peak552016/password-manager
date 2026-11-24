@@ -88,6 +88,8 @@ const DB_NAMES: Record<string, string> = {
   mongodb: 'MongoDB',
   redshift: 'Redshift',
   snowflake: 'Snowflake',
+  redis: 'Redis',
+  generic: '',
 }
 
 function dbLabel(c: DbeaverConn): string {
@@ -121,6 +123,7 @@ export function importDbeaver(
     return entry({
       type: 'database',
       title: name,
+      collection: project,
       environment: detectEnvironment(name, cfg.host, c.folder),
       notes: [project && `DBeaver project: ${project}`, c.folder && `DBeaver folder: ${c.folder}`].filter(Boolean).join('\n'),
       values: Object.fromEntries(Object.entries(values).filter(([, v]) => v)),
@@ -263,6 +266,7 @@ export function importPostmanCollection(col: PostmanCollection): Entry[] {
         entry({
           type: 'curl',
           title: it.name || url,
+          collection: colName,
           environment: detectEnvironment(it.name, url, ...path, colName),
           notes: [typeof r.description === 'string' ? r.description : '', `Postman: ${[colName, ...path].filter(Boolean).join(' / ')}`]
             .filter(Boolean)
@@ -280,6 +284,7 @@ export function importPostmanCollection(col: PostmanCollection): Entry[] {
       entry({
         type: 'env',
         title: `${colName} (collection variables)`,
+        collection: colName,
         environment: detectEnvironment(colName),
         values: { content: vars.map((v) => `${v.key}=${v.value ?? ''}`).join('\n'), project: colName },
       }),

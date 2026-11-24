@@ -137,7 +137,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       .sort((a, b) => Number(b.favorite) - Number(a.favorite))
   }, [items, query, typeFilter, envFilter, collFilter])
 
-  // import, export and settings sit behind the PIN (asked once per unlock)
+  // export and settings sit behind the PIN (asked once per unlock); import does not
   const guarded = (next: Pane) => setPane(pinOk ? next : { kind: 'pin', next })
 
   const toggle = (key: string, isOpen: boolean) => setToggled((m) => new Map(m).set(key, !isOpen))
@@ -407,11 +407,11 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
                 <Share2 className="nav-ic" />
                 <span>ส่งออก / แชร์ / สำรอง</span>
               </button>
-              <button className="nav-item" aria-current={pane.kind === 'import' || (pane.kind === 'pin' && pane.next?.kind === 'import')} onClick={() => guarded({ kind: 'import' })}>
+              <button className="nav-item" aria-current={pane.kind === 'import' || (pane.kind === 'pin' && pane.next?.kind === 'import')} onClick={() => setPane({ kind: 'import' })}>
                 <Download className="nav-ic" />
                 <span>นำเข้า</span>
               </button>
-              {!pinOk && <p className="manage-note">ต้องใส่ PIN ก่อนใช้</p>}
+              {!pinOk && <p className="manage-note">ดูทั้งหมด / ส่งออก ต้องใส่ PIN</p>}
             </div>
           )}
           <ThemeCycle />

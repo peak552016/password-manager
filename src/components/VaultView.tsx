@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ChevronRight, Download, Eye, EyeOff, Folder, FolderOpen, Layers, Lock, Plus, Search, Settings as SettingsIcon, Share2, ShieldCheck, Star } from 'lucide-react'
+import { ChevronRight, Download, Eye, EyeOff, FolderCog, Folder, FolderOpen, Layers, Lock, Plus, Search, Settings as SettingsIcon, Share2, ShieldCheck, Star } from 'lucide-react'
 import { deleteEntry, listEntries, saveEntry, type DecryptedItem, type Entry, type Session } from '../lib/vault'
 import { TYPES, typeOf } from '../lib/types'
 import { ENVIRONMENTS } from '../lib/env'
@@ -51,6 +51,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   const [pinFails, setPinFails] = useState(0)
   /** PIN given once this unlock: import / export / settings open freely */
   const [pinOk, setPinOk] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
   const query = searchFirst ? submitted : draft
   const pending = searchFirst && draft.trim() !== '' && draft !== submitted
   const runSearch = () => setSubmitted(draft)
@@ -364,39 +365,55 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         </nav>
 
         <div className="sidebar-foot">
-          {searchFirst && (
-            <button
-              className="nav-item reveal"
-              aria-pressed={showAll}
-              aria-current={pane.kind === 'pin' && !pane.next}
-              onClick={() => {
-                if (showAll) {
-                  setShowAll(false)
-                  if (!query.trim() && pane.kind === 'detail') setPane({ kind: 'empty' })
-                } else if (pinOk) setShowAll(true)
-                else setPane({ kind: 'pin' })
-              }}
-              title={showAll ? 'กลับไปซ่อนรายการ' : 'ใส่ PIN เพื่อดูรายการทั้งหมด'}
-            >
-              {showAll ? <EyeOff className="nav-ic" /> : <Eye className="nav-ic" />}
-              <span>{showAll ? 'ซ่อนทั้งหมด' : 'ดูทั้งหมด'}</span>
-            </button>
-          )}
           <ThemeSwitch />
           <button
-            className="nav-item"
-            aria-current={pane.kind === 'share'}
-            onClick={() =>
-              guarded({ kind: 'share', ids: typeFilter === 'all' && !envFilter && !query && collFilter === null ? [] : filtered.map((i) => i.id) })
-            }
+            className="nav-item manage-head"
+            aria-expanded={manageOpen}
+            aria-current={!manageOpen && (pane.kind === 'share' || pane.kind === 'import' || (pane.kind === 'pin' && pane.next?.kind !== 'settings'))}
+            onClick={() => setManageOpen(!manageOpen)}
+            title="Export / Manage"
           >
-            <Share2 className="nav-ic" />
-            <span>ส่งออก / แชร์</span>
+            <FolderCog className="nav-ic" />
+            <span>Export / Manage</span>
+            <ChevronRight className="chev nav-chev" />
           </button>
-          <button className="nav-item" aria-current={pane.kind === 'import' || (pane.kind === 'pin' && pane.next?.kind === 'import')} onClick={() => guarded({ kind: 'import' })}>
-            <Download className="nav-ic" />
-            <span>นำเข้า</span>
-          </button>
+          {manageOpen && (
+            <div className="manage-group">
+              {searchFirst && (
+                <button
+                  className="nav-item reveal"
+                  aria-pressed={showAll}
+                  aria-current={pane.kind === 'pin' && !pane.next}
+                  onClick={() => {
+                    if (showAll) {
+                      setShowAll(false)
+                      if (!query.trim() && pane.kind === 'detail') setPane({ kind: 'empty' })
+                    } else if (pinOk) setShowAll(true)
+                    else setPane({ kind: 'pin' })
+                  }}
+                  title={showAll ? 'กลับไปซ่อนรายการ' : 'ใส่ PIN เพื่อดูรายการทั้งหมด'}
+                >
+                  {showAll ? <EyeOff className="nav-ic" /> : <Eye className="nav-ic" />}
+                  <span>{showAll ? 'ซ่อนทั้งหมด' : 'ดูทั้งหมด'}</span>
+                </button>
+              )}
+              <button
+                className="nav-item"
+                aria-current={pane.kind === 'share' || (pane.kind === 'pin' && pane.next?.kind === 'share')}
+                onClick={() =>
+                  guarded({ kind: 'share', ids: typeFilter === 'all' && !envFilter && !query && collFilter === null ? [] : filtered.map((i) => i.id) })
+                }
+              >
+                <Share2 className="nav-ic" />
+                <span>ส่งออก / แชร์ / สำรอง</span>
+              </button>
+              <button className="nav-item" aria-current={pane.kind === 'import' || (pane.kind === 'pin' && pane.next?.kind === 'import')} onClick={() => guarded({ kind: 'import' })}>
+                <Download className="nav-ic" />
+                <span>นำเข้า</span>
+              </button>
+              {!pinOk && <p className="manage-note">ต้องใส่ PIN ก่อนใช้</p>}
+            </div>
+          )}
           <ThemeCycle />
           <button className="nav-item" aria-current={pane.kind === 'settings' || (pane.kind === 'pin' && pane.next?.kind === 'settings')} onClick={() => guarded({ kind: 'settings' })}>
             <SettingsIcon className="nav-ic" />

@@ -120,7 +120,7 @@ export function ItemDetail({ item, envVars = NO_VARS, onBack, onEdit, onDelete, 
               />
             ))}
             {curlCreds.some((c) => c.unresolved) && (
-              <p className="hint">ค่าที่เป็น {'{{ตัวแปร}}'} มาจาก Postman Environment นำเข้าไฟล์ Environment ไว้ในหมวดเดียวกันแล้วค่าจะขึ้นเอง</p>
+              <p className="hint">ไม่พบตัวแปรนี้ใน Environment ไหนเลย นำเข้าไฟล์ Environment ของ Postman แล้วค่าจะขึ้นเอง ไม่ต้องอยู่หมวดเดียวกัน</p>
             )}
           </>
         )}

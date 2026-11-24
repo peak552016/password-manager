@@ -667,19 +667,29 @@ function ResizeHandle({ width, onChange }: { width: number; onChange: (w: number
 }
 
 /**
- * {{vars}} for a cURL item from .env items in its หมวด: shared ones (no environment) first,
- * then one set per environment. An item with its own environment only gets that one.
+ * {{vars}} for a cURL item. Looks at .env items that define the variables the command uses:
+ * the same หมวด first, otherwise any หมวด. One set per environment (SIT, UAT…), with
+ * environment-less files (e.g. collection variables) shared by all. An item with its own
+ * environment only gets that one when it exists.
  */
 function envVarsFor(item: DecryptedItem, all: DecryptedItem[]): EnvVarSet[] {
   if (item.type !== 'curl') return []
-  const envs = all.filter((e) => e.type === 'env' && e.collection === item.collection)
+  const refs = new Set([...(item.values.curl ?? '').matchAll(/\{\{\s*([\w.$-]+)\s*\}\}/g)].map((m) => m[1]))
+  if (!refs.size) return []
+  const parsed = all
+    .filter((e) => e.type === 'env')
+    .map((e) => ({ e, vars: parseEnvContent(e.values.content ?? '') }))
+    .filter((x) => Object.keys(x.vars).some((k) => refs.has(k)))
+  const same = parsed.filter((x) => x.e.collection === item.collection)
+  const pool = same.length ? same : parsed
   const shared: Record<string, string> = {}
-  for (const e of envs.filter((e) => !e.environment)) Object.assign(shared, parseEnvContent(e.values.content ?? ''))
-  const names = [...new Set(envs.map((e) => e.environment).filter(Boolean))].filter((n) => !item.environment || n === item.environment)
+  for (const x of pool.filter((x) => !x.e.environment)) Object.assign(shared, x.vars)
+  let names = [...new Set(pool.map((x) => x.e.environment).filter(Boolean))]
+  if (item.environment && names.includes(item.environment)) names = [item.environment]
   if (!names.length) return [{ env: '', vars: shared }]
   return names.map((env) => {
     const vars = { ...shared }
-    for (const e of envs.filter((e) => e.environment === env)) Object.assign(vars, parseEnvContent(e.values.content ?? ''))
+    for (const x of pool.filter((x) => x.e.environment === env)) Object.assign(vars, x.vars)
     return { env, vars }
   })
 }

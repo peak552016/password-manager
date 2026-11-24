@@ -829,3 +829,4 @@ body.resizing .list li { animation: none; }
 .mode-opt[aria-pressed='true'] { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); transform: translateY(-1px); }
 .zip-compat { margin-top: 8px; }
 @media (max-width: 760px) { .mode-grid { grid-template-columns: 1fr; } }
+.g-kind { color: var(--muted); font-size: 12px; margin-right: 3px; line-height: 17px; }

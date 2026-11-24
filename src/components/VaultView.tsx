@@ -451,6 +451,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
                                   <span className="g-count">{row.items.length}</span>
                                 </strong>
                                 <span className="g-envs">
+                                  <span className="g-kind">{kindLabel(row.items[0])}</span>
                                   {row.items.map((i) => (i.environment ? <EnvBadge key={i.id} env={i.environment} /> : null))}
                                 </span>
                               </span>

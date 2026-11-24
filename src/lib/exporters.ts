@@ -111,12 +111,13 @@ export function toPlainCsv(entries: Entry[], base: string): ExportFile[] {
       name: `${base}.csv`,
       mime: 'text/csv',
       text: csv([
-        ['type', 'title', 'collection', 'environment', ...keys, 'knowledgeUrl', 'notes', ...custom],
+        ['type', 'title', 'collection', 'environment', 'access', ...keys, 'knowledgeUrl', 'notes', ...custom],
         ...entries.map((e) => [
           typeOf(e.type).label,
           e.title,
           e.collection,
           e.environment,
+          e.access.join(' + '),
           ...keys.map((k) => e.values[k] ?? ''),
           e.knowledgeUrl,
           e.notes,

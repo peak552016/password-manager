@@ -40,6 +40,6 @@ describe('exporters', () => {
   })
   it('plain CSV has a column per used field', () => {
     const [f] = toPlainCsv([e({ type: 'login', title: 'a', values: { username: 'u', password: 'p' }, fields: [{ label: 'PIN', value: '1', secret: true }] })], 'b')
-    expect(f.text.replace('﻿', '').split('\r\n')[0]).toBe('type,title,collection,environment,username,password,knowledgeUrl,notes,PIN')
+    expect(f.text.replace('﻿', '').split('\r\n')[0]).toBe('type,title,collection,environment,access,username,password,knowledgeUrl,notes,PIN')
   })
 })

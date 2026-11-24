@@ -501,6 +501,7 @@ pre.val { margin: 0; white-space: pre-wrap; padding: 10px 12px; border-radius: v
 .env-opt[aria-pressed='true']::before { background: #0a0c10; transform: scale(1.1); }
 .env-opt.env-dev { --ec: #60a5fa; } .env-opt.env-sit { --ec: #a78bfa; } .env-opt.env-uat { --ec: #f5b544; }
 .env-opt.env-preprod { --ec: #fb923c; } .env-opt.env-prod { --ec: #ff6b6b; }
+.env-opt.env-nonprod { --ec: #94a3b8; }
 .env-custom { width: 120px !important; font-family: var(--mono); font-size: 13px !important; padding: 6px 10px !important; }
 
 .custom-fields { display: flex; flex-direction: column; gap: 8px; }
@@ -830,3 +831,14 @@ body.resizing .list li { animation: none; }
 .zip-compat { margin-top: 8px; }
 @media (max-width: 760px) { .mode-grid { grid-template-columns: 1fr; } }
 .g-kind { color: var(--muted); font-size: 12px; margin-right: 3px; line-height: 17px; }
+.pin-body { max-width: 360px; }
+.pin-input { font-family: var(--mono); font-size: 22px !important; letter-spacing: 0.5em; text-align: center; }
+.pin-input.shake { animation: shake 0.4s var(--ease); }
+.nav-item.reveal[aria-pressed='true'] { color: #f5b544; background: rgb(245 181 68 / 0.1); }
+.pin-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 0; font-size: 13.5px; }
+.inline-confirm { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.inline-confirm input { flex: 1; min-width: 200px; }
+.inline-confirm .hint { flex-basis: 100%; margin: 0; }
+.banner.access { background: rgb(96 165 250 / 0.12); color: #60a5fa; }
+.banner svg { width: 17px; height: 17px; flex: none; }
+.env-opt.access-opt { --ec: #60a5fa; }

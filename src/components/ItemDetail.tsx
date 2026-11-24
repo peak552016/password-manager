@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { BookOpen, ChevronLeft, Clock, ExternalLink, Pencil, Share2, Star, Trash2 } from 'lucide-react'
+import { BookOpen, ChevronLeft, Clock, ExternalLink, Network, Pencil, Share2, Star, Trash2 } from 'lucide-react'
 import type { DecryptedItem } from '../lib/vault'
 import { isSecretKind, typeOf, type FieldKind } from '../lib/types'
 import { CopyButton, EnvBadge, ItemIcon, RevealButton } from './ui'
@@ -58,6 +58,15 @@ export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, o
           </button>
         </div>
       </header>
+
+      {item.access.length > 0 && (
+        <div className="banner access">
+          <Network />
+          <span>
+            ต้องเชื่อมต่อ <b>{item.access.join(' + ')}</b> ก่อนใช้งาน
+          </span>
+        </div>
+      )}
 
       {daysLeft !== null && (
         <div className={`banner ${daysLeft < 0 ? 'bad' : daysLeft <= 14 ? 'warn' : 'ok'}`}>

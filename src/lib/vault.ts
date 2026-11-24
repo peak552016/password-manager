@@ -26,6 +26,8 @@ export interface Entry {
   /** user-chosen group ("หมวด"), e.g. a project name; '' = none */
   collection: string
   environment: string
+  /** what must be connected first, e.g. ['VPN'], ['VDI'] */
+  access: string[]
   knowledgeUrl: string
   notes: string
   favorite: boolean
@@ -40,6 +42,7 @@ export const EMPTY_ENTRY: Entry = {
   title: '',
   collection: '',
   environment: '',
+  access: [],
   knowledgeUrl: '',
   notes: '',
   favorite: false,
@@ -62,6 +65,7 @@ export function normalizeEntry(raw: Partial<Entry> & Record<string, unknown>): E
     // older DBeaver imports recorded the project only in the notes
     collection: str(raw.collection) || (str(raw.notes).match(/^DBeaver project: (.+)$/m)?.[1]?.trim() ?? ''),
     environment: str(raw.environment),
+    access: Array.isArray(raw.access) ? raw.access.filter((a): a is string => typeof a === 'string' && a.trim() !== '') : [],
     knowledgeUrl: str(raw.knowledgeUrl),
     notes: str(raw.notes),
     favorite: raw.favorite === true,

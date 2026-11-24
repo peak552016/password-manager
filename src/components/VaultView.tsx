@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ChevronRight, Download, Folder, FolderOpen, Layers, Lock, Plus, Search, Settings as SettingsIcon, Share2, ShieldCheck, Star } from 'lucide-react'
+import { ChevronRight, Download, Eye, EyeOff, Folder, FolderOpen, Layers, Lock, Plus, Search, Settings as SettingsIcon, Share2, ShieldCheck, Star } from 'lucide-react'
 import { deleteEntry, listEntries, saveEntry, type DecryptedItem, type Entry, type Session } from '../lib/vault'
 import { TYPES, typeOf } from '../lib/types'
 import { ENVIRONMENTS } from '../lib/env'
@@ -12,6 +12,8 @@ import { ImportTools } from './ImportTools'
 import { EnvBadge, ItemIcon, Kbd, Toast } from './ui'
 import { collectionsOf, groupRows } from '../lib/group'
 import { useSearchFirst } from '../lib/prefs'
+import { PIN_MAX_TRIES } from '../lib/pin'
+import { PinPane } from './PinPane'
 import { useToast } from '../lib/useToast'
 import { dbEngine } from '../lib/format'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
@@ -25,6 +27,7 @@ type Pane =
   | { kind: 'settings' }
   | { kind: 'share'; ids: string[] }
   | { kind: 'import' }
+  | { kind: 'pin' }
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 const MOD = isMac ? '⌘' : 'Ctrl'
@@ -43,6 +46,9 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   const [toggled, setToggled] = useState<Map<string, boolean>>(new Map())
   const [listW, setListW] = useState(readListWidth)
   const searchFirst = useSearchFirst()
+  /** PIN entered: list everything until lock */
+  const [showAll, setShowAll] = useState(false)
+  const [pinFails, setPinFails] = useState(0)
   const query = searchFirst ? submitted : draft
   const pending = searchFirst && draft.trim() !== '' && draft !== submitted
   const runSearch = () => setSubmitted(draft)
@@ -121,7 +127,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         const plain = t.fields
           .filter((f) => f.kind === 'text' || f.kind === 'mono' || f.kind === 'url')
           .map((f) => i.values[f.key] ?? '')
-        return [i.title, i.collection, i.environment, i.knowledgeUrl, i.notes, t.label, ...plain, ...i.fields.map((f) => f.label)].some((s) =>
+        return [i.title, i.collection, i.environment, ...i.access, i.knowledgeUrl, i.notes, t.label, ...plain, ...i.fields.map((f) => f.label)].some((s) =>
           s.toLowerCase().includes(q),
         )
       })
@@ -147,7 +153,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   )
 
   // search-first: nothing is listed until the user searches or picks a หมวด / favourites on purpose
-  const hidden = searchFirst && !query.trim() && collFilter === null && typeFilter !== 'fav'
+  const hidden = searchFirst && !showAll && !query.trim() && collFilter === null && typeFilter !== 'fav'
   // when the list hides again (search cleared), close the open item too
   const [wasHidden, setWasHidden] = useState(hidden)
   if (hidden !== wasHidden) {
@@ -247,8 +253,27 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         />
       )
       break
+    case 'pin':
+      paneContent = (
+        <PinPane
+          vaultId={session.vaultId}
+          failures={pinFails}
+          onFail={() => {
+            const n = pinFails + 1
+            setPinFails(n)
+            if (n >= PIN_MAX_TRIES) onLock()
+          }}
+          onOk={() => {
+            setPinFails(0)
+            setShowAll(true)
+            setPane({ kind: 'empty' })
+          }}
+          onCancel={() => setPane({ kind: 'empty' })}
+        />
+      )
+      break
     case 'settings':
-      paneContent = <Settings onBack={() => setPane({ kind: 'empty' })} onReplaced={onLock} />
+      paneContent = <Settings vaultId={session.vaultId} onBack={() => setPane({ kind: 'empty' })} onReplaced={onLock} />
       break
     default:
       paneContent = <EmptyPane total={counts.all} hidden={hidden} onNew={() => setPane({ kind: 'pick' })} />
@@ -329,6 +354,23 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         </nav>
 
         <div className="sidebar-foot">
+          {searchFirst && (
+            <button
+              className="nav-item reveal"
+              aria-pressed={showAll}
+              aria-current={pane.kind === 'pin'}
+              onClick={() => {
+                if (showAll) {
+                  setShowAll(false)
+                  if (!query.trim() && pane.kind === 'detail') setPane({ kind: 'empty' })
+                } else setPane({ kind: 'pin' })
+              }}
+              title={showAll ? 'กลับไปซ่อนรายการ' : 'ใส่ PIN เพื่อดูรายการทั้งหมด'}
+            >
+              {showAll ? <EyeOff className="nav-ic" /> : <Eye className="nav-ic" />}
+              <span>{showAll ? 'ซ่อนทั้งหมด' : 'ดูทั้งหมด'}</span>
+            </button>
+          )}
           <ThemeSwitch />
           <button
             className="nav-item"
@@ -517,7 +559,7 @@ function EmptyPane({ total, hidden, onNew }: { total: number; hidden: boolean; o
 function kindLabel(i: DecryptedItem): string {
   const t = typeOf(i.type)
   const eng = i.type === 'database' ? dbEngine(i.values) : null
-  return [eng?.label ?? t.label, i.collection].filter(Boolean).join(' · ')
+  return [eng?.label ?? t.label, i.collection, i.access.length ? `ต้องใช้ ${i.access.join('/')}` : ''].filter(Boolean).join(' · ')
 }
 
 /** Split the list by หมวด (named ones first, then "no หมวด") when browsing everything. */

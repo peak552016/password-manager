@@ -1,17 +1,17 @@
 import { useState, type FormEvent } from 'react'
 import { ChevronLeft, Download, EyeOff, KeyRound, ShieldCheck, Upload } from 'lucide-react'
 import { setSearchFirst, useSearchFirst } from '../lib/prefs'
-import { changeMasterPassword, exportBackup, WrongPasswordError } from '../lib/vault'
+import { changeMasterPassword, exportBackup, unlock, WrongPasswordError } from '../lib/vault'
+import { clearPin, hasPin, verifyPin } from '../lib/pin'
 import { estimateBits } from '../lib/generator'
 import { Strength } from './Strength'
 import { ImportBackup } from './ImportBackup'
 
 const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent)
 
-export function Settings({ onBack, onReplaced }: { onBack: () => void; onReplaced: () => void }) {
+export function Settings({ vaultId, onBack, onReplaced }: { vaultId: string; onBack: () => void; onReplaced: () => void }) {
   const [importing, setImporting] = useState(false)
   const [msg, setMsg] = useState('')
-  const searchFirst = useSearchFirst()
 
   async function doExport() {
     const backup = await exportBackup()
@@ -76,18 +76,7 @@ export function Settings({ onBack, onReplaced }: { onBack: () => void; onReplace
           {msg && <p className="hint ok">{msg}</p>}
         </section>
 
-        <section className="card">
-          <h3>
-            <EyeOff /> ความเป็นส่วนตัว
-          </h3>
-          <label className="check-row">
-            <input type="checkbox" checked={searchFirst} onChange={(e) => setSearchFirst(e.target.checked)} />
-            <span>
-              ซ่อนรายการจนกว่าจะค้นหา
-              <small className="muted">เข้ามาแล้วจะไม่เห็นรายการ ต้องพิมพ์ชื่อในช่องค้นหาก่อน หรือกดเลือกหมวด / รายการโปรด</small>
-            </span>
-          </label>
-        </section>
+        <PrivacyCard vaultId={vaultId} />
 
         <ChangePassword />
 
@@ -160,5 +149,93 @@ function ChangePassword() {
         </div>
       </div>
     </form>
+  )
+}
+
+function PrivacyCard({ vaultId }: { vaultId: string }) {
+  const searchFirst = useSearchFirst()
+  const [pinSet, setPinSet] = useState(() => hasPin(vaultId))
+  const [ask, setAsk] = useState<'off' | 'reset' | null>(null)
+  const [value, setValue] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const close = () => {
+    setAsk(null)
+    setValue('')
+    setErr('')
+  }
+
+  async function confirm(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setErr('')
+    try {
+      if (ask === 'off') {
+        if (!(await verifyPin(vaultId, value))) throw new Error('PIN ไม่ถูกต้อง')
+        setSearchFirst(false)
+      } else {
+        await unlock(value)
+        clearPin(vaultId)
+        setPinSet(false)
+      }
+      close()
+    } catch (e) {
+      setErr(e instanceof WrongPasswordError ? 'master password ไม่ถูกต้อง' : e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="card">
+      <h3>
+        <EyeOff /> ความเป็นส่วนตัว
+      </h3>
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={searchFirst}
+          onChange={(e) => {
+            // turning the protection off needs the PIN, otherwise it would bypass it
+            if (e.target.checked) setSearchFirst(true)
+            else if (pinSet) setAsk('off')
+            else setSearchFirst(false)
+          }}
+        />
+        <span>
+          ซ่อนรายการจนกว่าจะค้นหา
+          <small className="muted">เข้ามาแล้วจะไม่เห็นรายการ ต้องค้นหาก่อน หรือกด “ดูทั้งหมด” แล้วใส่ PIN</small>
+        </span>
+      </label>
+      <p className="muted pin-status">
+        PIN ดูทั้งหมด: {pinSet ? <b>ตั้งไว้แล้ว</b> : 'ยังไม่ได้ตั้ง (จะให้ตั้งตอนกด “ดูทั้งหมด” ครั้งแรก)'}
+        {pinSet && ask === null && (
+          <button className="btn ghost sm" onClick={() => setAsk('reset')}>
+            ลืม PIN / รีเซ็ต
+          </button>
+        )}
+      </p>
+      {ask && (
+        <form className="inline-confirm" onSubmit={confirm}>
+          <input
+            type="password"
+            inputMode={ask === 'off' ? 'numeric' : undefined}
+            autoComplete={ask === 'off' ? 'off' : 'current-password'}
+            placeholder={ask === 'off' ? 'ใส่ PIN เพื่อปิดการซ่อน' : 'ใส่ master password เพื่อลบ PIN'}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            autoFocus
+          />
+          <button className="btn primary" disabled={!value || busy}>
+            ยืนยัน
+          </button>
+          <button type="button" className="btn ghost" onClick={close}>
+            ยกเลิก
+          </button>
+          {err && <p className="hint error">{err}</p>}
+        </form>
+      )}
+    </section>
   )
 }

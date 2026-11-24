@@ -79,31 +79,34 @@ export function ItemEditor({ initial, type, onSave, onCancel, collections, defau
           <CollectionPicker value={entry.collection} onChange={(v) => patch({ collection: v ?? '' })} options={collections} />
         </div>
 
-        {t.technical && (
-          <div className="form-row">
-            <span className="form-label">Environment</span>
-            <div className="env-picker">
-              {ENVIRONMENTS.map((env) => (
-                <button
-                  key={env}
-                  type="button"
-                  className={`env-opt env-${envSlug(env)}`}
-                  aria-pressed={entry.environment === env}
-                  onClick={() => patch({ environment: entry.environment === env ? '' : env })}
-                >
-                  {env}
-                </button>
-              ))}
-              <input
-                className="env-custom"
-                value={ENVIRONMENTS.includes(entry.environment) ? '' : entry.environment}
-                onChange={(e) => patch({ environment: e.target.value.toUpperCase() })}
-                placeholder="อื่นๆ"
-                {...NO_AUTOFILL}
-              />
-            </div>
+        <div className="form-row">
+          <span className="form-label">Environment</span>
+          <div className="env-picker">
+            {ENVIRONMENTS.map((env) => (
+              <button
+                key={env}
+                type="button"
+                className={`env-opt env-${envSlug(env)}`}
+                aria-pressed={entry.environment === env}
+                onClick={() => patch({ environment: entry.environment === env ? '' : env })}
+              >
+                {env}
+              </button>
+            ))}
+            <input
+              className="env-custom"
+              value={ENVIRONMENTS.includes(entry.environment) ? '' : entry.environment}
+              onChange={(e) => patch({ environment: e.target.value.toUpperCase() })}
+              placeholder="อื่นๆ"
+              {...NO_AUTOFILL}
+            />
           </div>
-        )}
+        </div>
+
+        <div className="form-row">
+          <span className="form-label">ต้องเชื่อมต่อก่อนใช้</span>
+          <AccessPicker value={entry.access} onChange={(access) => patch({ access })} />
+        </div>
 
         {t.fields.map((f) => (
           <FieldInput key={f.key} def={f} value={entry.values[f.key] ?? ''} onChange={(v) => setValue(f.key, v)} isNew={!initial} />
@@ -310,6 +313,43 @@ function Generator({
           <RefreshCw />
         </button>
       </div>
+    </div>
+  )
+}
+
+const ACCESS_PRESETS = ['VPN', 'VDI']
+
+function AccessPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [draft, setDraft] = useState('')
+  const toggle = (a: string) => onChange(value.includes(a) ? value.filter((x) => x !== a) : [...value, a])
+  const custom = value.filter((a) => !ACCESS_PRESETS.includes(a))
+  const add = () => {
+    const v = draft.trim()
+    if (v && !value.includes(v)) onChange([...value, v])
+    setDraft('')
+  }
+  return (
+    <div className="env-picker">
+      {[...ACCESS_PRESETS, ...custom].map((a) => (
+        <button key={a} type="button" className="env-opt access-opt" aria-pressed={value.includes(a)} onClick={() => toggle(a)}>
+          {a}
+        </button>
+      ))}
+      <input
+        className="env-custom"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            add()
+          }
+        }}
+        onBlur={add}
+        placeholder="อื่นๆ เช่น Jump host"
+        {...NO_AUTOFILL}
+      />
+      {!value.length && <span className="hint">ไม่ต้อง</span>}
     </div>
   )
 }

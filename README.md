@@ -41,7 +41,7 @@ npm run build     # build ไปที่ dist/
 | Environment Variables | เนื้อหาไฟล์ .env, โปรเจกต์ |
 | Secure Note | ข้อความลับ |
 
-ประเภทเชิงเทคนิคมี **Environment** (DEV / SIT / UAT / PRE-PROD / PROD หรือพิมพ์เอง) และ **Link Knowledge**
+ทุกประเภทมี **Environment** (DEV / SIT / UAT / NON-PROD / PRE-PROD / PROD หรือพิมพ์เอง) ประเภทเชิงเทคนิคมี **Link Knowledge** ด้วย
 ทุกประเภทเพิ่มฟิลด์เองได้ และปักเป็นรายการโปรดได้
 
 คีย์ลัด: `Ctrl K` ค้นหา · `Ctrl N` รายการใหม่ · `Ctrl L` ล็อก

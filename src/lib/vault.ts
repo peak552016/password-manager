@@ -76,8 +76,8 @@ export interface Session {
 }
 
 export class WrongPasswordError extends Error {
-  constructor() {
-    super('รหัสผ่านหลักไม่ถูกต้อง')
+  constructor(message = 'รหัสผ่านหลักไม่ถูกต้อง') {
+    super(message)
   }
 }
 

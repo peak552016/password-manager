@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { BookOpen, ChevronLeft, Clock, ExternalLink, Pencil, Star, Trash2 } from 'lucide-react'
+import { BookOpen, ChevronLeft, Clock, ExternalLink, Pencil, Share2, Star, Trash2 } from 'lucide-react'
 import type { DecryptedItem } from '../lib/vault'
 import { isSecretKind, typeOf, type FieldKind } from '../lib/types'
 import { CopyButton, EnvBadge, RevealButton, TypeIcon } from './ui'
@@ -10,12 +10,13 @@ interface Props {
   onEdit: () => void
   onDelete: () => void
   onToggleFavorite: () => void
+  onShare: () => void
   toast: (m: string) => void
 }
 
 const toHref = (url: string) => (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`)
 
-export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, toast }: Props) {
+export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, onShare, toast }: Props) {
   const t = typeOf(item.type)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const expires = item.values.expiresAt ? new Date(item.values.expiresAt) : null
@@ -44,6 +45,9 @@ export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, t
             title={item.favorite ? 'เอาออกจากรายการโปรด' : 'ปักเป็นรายการโปรด'}
           >
             <Star />
+          </button>
+          <button className="icon-btn" onClick={onShare} title="แชร์รายการนี้">
+            <Share2 />
           </button>
           <button className="btn" onClick={onEdit}>
             <Pencil /> แก้ไข

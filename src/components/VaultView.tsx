@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Layers, Lock, Plus, Search, Settings as SettingsIcon, ShieldCheck, Star } from 'lucide-react'
+import { Download, Layers, Lock, Plus, Search, Settings as SettingsIcon, Share2, ShieldCheck, Star } from 'lucide-react'
 import { deleteEntry, listEntries, saveEntry, type DecryptedItem, type Entry, type Session } from '../lib/vault'
 import { TYPES, typeOf } from '../lib/types'
 import { ENVIRONMENTS } from '../lib/env'
@@ -7,6 +7,7 @@ import { ItemEditor } from './ItemEditor'
 import { ItemDetail } from './ItemDetail'
 import { Settings } from './Settings'
 import { TypePicker } from './TypePicker'
+import { ShareExport, ShareImport } from './Share'
 import { EnvBadge, Kbd, Toast, TypeIcon } from './ui'
 import { useToast } from '../lib/useToast'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
@@ -18,6 +19,8 @@ type Pane =
   | { kind: 'new'; type: string }
   | { kind: 'edit'; id: string }
   | { kind: 'settings' }
+  | { kind: 'share'; ids: string[] }
+  | { kind: 'import' }
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 const MOD = isMac ? '⌘' : 'Ctrl'
@@ -154,7 +157,27 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
           onEdit={() => setPane({ kind: 'edit', id: selected.id })}
           onDelete={() => onDelete(selected.id)}
           onToggleFavorite={() => toggleFavorite(selected)}
+          onShare={() => setPane({ kind: 'share', ids: [selected.id] })}
           toast={setToast}
+        />
+      )
+      break
+    case 'share':
+      paneContent = (
+        <ShareExport key={pane.ids.join()} items={items ?? []} preselected={pane.ids} onClose={() => setPane({ kind: 'empty' })} toast={setToast} />
+      )
+      break
+    case 'import':
+      paneContent = (
+        <ShareImport
+          existing={items ?? []}
+          onClose={() => setPane({ kind: 'empty' })}
+          onImport={async (entries) => {
+            for (const e of entries) await saveEntry(session, e)
+            await reload()
+            setPane({ kind: 'empty' })
+            setToast(`เพิ่ม ${entries.length} รายการลงคลังแล้ว`)
+          }}
         />
       )
       break
@@ -219,6 +242,18 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
 
         <div className="sidebar-foot">
           <ThemeSwitch />
+          <button
+            className="nav-item"
+            aria-current={pane.kind === 'share'}
+            onClick={() => setPane({ kind: 'share', ids: typeFilter === 'all' && !envFilter && !query ? [] : filtered.map((i) => i.id) })}
+          >
+            <Share2 className="nav-ic" />
+            <span>ส่งออกเพื่อแชร์</span>
+          </button>
+          <button className="nav-item" aria-current={pane.kind === 'import'} onClick={() => setPane({ kind: 'import' })}>
+            <Download className="nav-ic" />
+            <span>นำเข้าไฟล์แชร์</span>
+          </button>
           <ThemeCycle />
           <button className="nav-item" aria-current={pane.kind === 'settings'} onClick={() => setPane({ kind: 'settings' })}>
             <SettingsIcon className="nav-ic" />

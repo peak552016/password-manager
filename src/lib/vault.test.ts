@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import * as vault from './vault'
 import * as db from './db'
 import { generatePassword, DEFAULT_GEN } from './generator'
+import { createShare, generateSharePassword, openShare } from './share'
 
 // small KDF params so tests run fast; production uses 64 MiB
 const FAST = { memory: 1024, iterations: 1 }
@@ -105,5 +106,39 @@ describe('generator', () => {
     expect(generatePassword({ ...DEFAULT_GEN, upper: false, symbols: false, digits: false, length: 50 })).toMatch(
       /^[a-z]+$/,
     )
+  })
+})
+
+describe('share files', () => {
+  const items = [
+    vault.normalizeEntry({ type: 'api', title: 'Claim API', environment: 'UAT', values: { apiKey: 'ak_share_1' }, favorite: true }),
+    vault.normalizeEntry({ type: 'curl', title: 'Get claim', values: { curl: 'curl -H "x-key: ak_share_2"' } }),
+  ]
+
+  it('round-trips with the share password and hides everything', async () => {
+    const pw = generateSharePassword()
+    expect(pw).toMatch(/^[A-Za-z0-9]{4}(-[A-Za-z0-9]{4}){3}$/)
+    const file = await createShare(items, pw, 'Claim team', FAST)
+    const raw = JSON.stringify(file)
+    for (const v of ['ak_share_1', 'ak_share_2', 'Claim', 'UAT']) expect(raw).not.toContain(v)
+    expect(file.count).toBe(2)
+    const opened = await openShare(JSON.parse(raw), pw)
+    expect(opened.name).toBe('Claim team')
+    expect(opened.entries.map((e) => e.title)).toEqual(['Claim API', 'Get claim'])
+    expect(opened.entries[0].favorite).toBe(false)
+    expect(opened.entries[0].values.apiKey).toBe('ak_share_1')
+  })
+
+  it('rejects a wrong share password', async () => {
+    const file = await createShare(items, 'right-pass', 'x', FAST)
+    await expect(openShare(file, 'wrong-pass')).rejects.toThrow('รหัสแชร์ไม่ถูกต้อง')
+  })
+
+  it('imported entries land in the vault as new items', async () => {
+    const s = await vault.createAccount('pw-share-import', FAST)
+    const file = await createShare(items, 'sp', 'x', FAST)
+    const { entries } = await openShare(file, 'sp')
+    for (const e of entries) await vault.saveEntry(s, e)
+    expect(await vault.listEntries(s)).toHaveLength(2)
   })
 })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 
-const DURATION = 2300
+const DURATION = 3500
 const EXIT = 550
 
 /** Intro shown once each time the app opens. Click or any key skips it. */

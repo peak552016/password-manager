@@ -605,7 +605,7 @@ html.theme-anim, html.theme-anim * { transition: background-color 0.35s ease, bo
   position: absolute; width: 900px; height: 900px; border-radius: 50%;
   background: conic-gradient(from 0deg, var(--accent), #5a6cf6, #a78bfa, var(--accent));
   filter: blur(140px); opacity: 0;
-  animation: splash-glow 2.4s var(--ease) forwards, spin 12s linear infinite;
+  animation: splash-glow 3.4s var(--ease) forwards, spin 12s linear infinite;
 }
 .splash-content { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px; }
 .splash-mark { position: relative; width: 112px; height: 112px; display: grid; place-items: center; margin-bottom: 28px; }
@@ -636,7 +636,7 @@ html.theme-anim, html.theme-anim * { transition: background-color 0.35s ease, bo
 }
 .splash-sub { margin-top: 14px; color: var(--text-2); font-size: 15px; animation: rise 0.6s 1.35s var(--ease) both; }
 .splash-bar { margin-top: 30px; width: 180px; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; animation: fade 0.4s 0.5s both; }
-.splash-bar span { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--accent), #5a6cf6); transform-origin: left; animation: load 1.9s 0.4s var(--ease) both; }
+.splash-bar span { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--accent), #5a6cf6); transform-origin: left; animation: load 3.1s 0.4s var(--ease) both; }
 .splash-skip { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); font-size: 12px; color: var(--muted); animation: fade 0.6s 1.4s both; }
 
 @keyframes splash-glow { to { opacity: 0.22; } }

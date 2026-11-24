@@ -14,8 +14,10 @@ import { collectionsOf, groupRows } from '../lib/group'
 import { useSearchFirst } from '../lib/prefs'
 import { PIN_MAX_TRIES } from '../lib/pin'
 import { PinPane } from './PinPane'
+import type { EnvVarSet } from './ItemDetail'
 import { useToast } from '../lib/useToast'
 import { dbEngine } from '../lib/format'
+import { parseEnvContent } from '../lib/importers'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
 
 type Pane =
@@ -230,6 +232,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         <ItemDetail
           key={selected.id}
           item={selected}
+          envVars={envVarsFor(selected, items ?? [])}
           onBack={() => setPane({ kind: 'empty' })}
           onEdit={() => setPane({ kind: 'edit', id: selected.id })}
           onDelete={() => onDelete(selected.id)}
@@ -490,7 +493,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
         ) : (
           <ul className="list" key={`${typeFilter}|${envFilter}|${collFilter}`}>
             {query.trim() && collections.length > 0 && <li className="list-note">ค้นหาจากทุกหมวด · พบ {filtered.length} รายการ</li>}
-            {sections(filtered, !query.trim() && collFilter === null && collections.length > 0).map((sec) => {
+            {sections(filtered, collFilter === null && collections.length > 0).map((sec) => {
               const secKey = `s:${sec.name}`
               const secOpen = toggled.get(secKey) ?? true
               let n = 0
@@ -661,4 +664,22 @@ function ResizeHandle({ width, onChange }: { width: number; onChange: (w: number
       }}
     />
   )
+}
+
+/**
+ * {{vars}} for a cURL item from .env items in its หมวด: shared ones (no environment) first,
+ * then one set per environment. An item with its own environment only gets that one.
+ */
+function envVarsFor(item: DecryptedItem, all: DecryptedItem[]): EnvVarSet[] {
+  if (item.type !== 'curl') return []
+  const envs = all.filter((e) => e.type === 'env' && e.collection === item.collection)
+  const shared: Record<string, string> = {}
+  for (const e of envs.filter((e) => !e.environment)) Object.assign(shared, parseEnvContent(e.values.content ?? ''))
+  const names = [...new Set(envs.map((e) => e.environment).filter(Boolean))].filter((n) => !item.environment || n === item.environment)
+  if (!names.length) return [{ env: '', vars: shared }]
+  return names.map((env) => {
+    const vars = { ...shared }
+    for (const e of envs.filter((e) => e.environment === env)) Object.assign(vars, parseEnvContent(e.values.content ?? ''))
+    return { env, vars }
+  })
 }

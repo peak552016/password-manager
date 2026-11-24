@@ -154,3 +154,33 @@ describe('Postman', () => {
     expect(get.values.curl).toContain('x-api-key: ak_uat')
   })
 })
+
+import { importPostmanV1Collection, isPostmanDump, isPostmanV1Collection, linkEnvironments } from './importers'
+import { EMPTY_ENTRY as EE } from './vault'
+
+describe('Postman data dump', () => {
+  it('reads v1 collections and links environments by name', () => {
+    const dump = {
+      version: 1,
+      collections: [
+        {
+          name: 'eKYC v2',
+          folders: [{ id: 'f1', name: 'Auth' }],
+          requests: [
+            { name: 'token', method: 'POST', url: '{{baseUrl}}/oauth', folder: 'f1', headers: 'Content-Type: application/x-www-form-urlencoded\n', dataMode: 'urlencoded', data: [{ key: 'client_id', value: '{{client_id}}' }] },
+          ],
+        },
+      ],
+      environments: [{ name: 'ekyc SIT', values: [] }],
+    }
+    expect(isPostmanDump(dump)).toBe(true)
+    expect(isPostmanV1Collection(dump.collections[0])).toBe(true)
+    const [e] = importPostmanV1Collection(dump.collections[0])
+    expect(e.collection).toBe('eKYC v2')
+    expect(e.values.curl).toContain("client_id={{client_id}}")
+    expect(e.notes).toBe('Postman: eKYC v2 / Auth')
+    const envs = [{ ...EE, type: 'env', title: 'ekyc SIT', values: {}, fields: [], access: [] }]
+    linkEnvironments(envs, ['eKYC v2', 'SuperApp'])
+    expect(envs[0].collection).toBe('eKYC v2')
+  })
+})

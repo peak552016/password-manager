@@ -856,3 +856,4 @@ body.resizing .list li { animation: none; }
   .manage-group { margin-left: 0; padding-left: 0; border-left: none; }
   .manage-note, .manage-head .nav-chev { display: none; }
 }
+.field-section { margin: 0; padding: 16px 16px 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }

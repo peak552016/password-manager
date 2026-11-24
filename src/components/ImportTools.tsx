@@ -10,8 +10,13 @@ import {
   isDbeaverDataSources,
   isPostmanCollection,
   isPostmanEnvironment,
+  isPostmanDump,
+  isPostmanV1Collection,
+  importPostmanV1Collection,
+  linkEnvironments,
   type DbeaverCreds,
 } from '../lib/importers'
+import { BlobReader, TextWriter, ZipReader } from '@zip.js/zip.js'
 import { ItemPicker } from './ItemPicker'
 import { CollectionPicker } from './CollectionPicker'
 import { collectionsOf } from '../lib/group'
@@ -186,7 +191,10 @@ function ToolImport({
           <li>
             <b>Environment:</b> คลิก <code>…</code> ข้างชื่อ environment → <b>Export</b>
           </li>
-          <li>เลือกไฟล์ทั้งหมดพร้อมกันได้ ทั้ง collection และ environment</li>
+          <li>
+            <b>เอาทั้งหมดทีเดียว:</b> Postman → <b>Settings → Data → Export data</b> ได้ไฟล์ <code>.zip</code> (ทางอีเมล) เลือกไฟล์ zip นั้นได้เลย ไม่ต้องแตก
+          </li>
+          <li>เลือกไฟล์ทั้งหมดพร้อมกันได้ ทั้ง collection, environment และ zip · environment ที่ชื่อตรงกับ collection จะเข้าหมวดเดียวกันให้</li>
           <li className="warn">
             <AlertTriangle />
             <span>
@@ -218,12 +226,12 @@ function ToolImport({
               ? batches.length
                 ? '+ เพิ่มไฟล์จากโปรเจกต์อื่น'
                 : 'เลือกไฟล์ data-sources.json + credentials-config.json'
-              : 'เลือกไฟล์ .json ที่ export จาก Postman'}
+              : 'เลือกไฟล์ .json หรือ .zip ที่ export จาก Postman'}
           </span>
           <input
             type="file"
             multiple
-            accept=".json,application/json"
+            accept=".json,.zip,application/json,application/zip"
             onChange={(e) => {
               void readFiles(e.target.files)
               e.target.value = ''
@@ -409,19 +417,41 @@ async function parsePostman(files: File[]): Promise<Parsed> {
   const entries: Entry[] = []
   const envs: Entry[] = []
   let cols = 0
-  for (const f of files) {
-    const json = await readJson(f)
+  const take = (json: unknown, name: string, strict: boolean) => {
     if (isPostmanCollection(json)) {
       cols++
       const items = importPostmanCollection(json)
       entries.push(...items.filter((i) => i.type === 'curl'))
       envs.push(...items.filter((i) => i.type === 'env'))
+    } else if (isPostmanV1Collection(json)) {
+      cols++
+      entries.push(...importPostmanV1Collection(json))
     } else if (isPostmanEnvironment(json)) envs.push(importPostmanEnvironment(json))
-    else throw new Error(`${f.name} ไม่ใช่ไฟล์ collection หรือ environment ของ Postman`)
+    else if (isPostmanDump(json)) {
+      for (const c of json.collections ?? []) take(c, name, false)
+      for (const e of json.environments ?? []) take(e, name, false)
+    } else if (strict) throw new Error(`${name} ไม่ใช่ไฟล์ collection หรือ environment ของ Postman`)
   }
-  // with a single collection, its environments belong to it too
-  const only = new Set(entries.map((e) => e.collection))
-  if (cols === 1 && only.size === 1) for (const e of envs) if (!e.collection) e.collection = [...only][0]
+  for (const f of files) {
+    if (/\.zip$/i.test(f.name)) {
+      // Postman Settings → Data → Export data: a zip of collection / environment JSON files
+      const zip = new ZipReader(new BlobReader(f), { useWebWorkers: false })
+      for (const z of await zip.getEntries()) {
+        if (z.directory || !/\.json$/i.test(z.filename)) continue
+        try {
+          take(JSON.parse(await z.getData(new TextWriter())), z.filename, false)
+        } catch {
+          /* not JSON we understand: skip */
+        }
+      }
+      await zip.close()
+    } else take(await readJson(f), f.name, true)
+  }
+  if (!cols && !envs.length) throw new Error('ไม่พบ collection หรือ environment ของ Postman ในไฟล์ที่เลือก')
+  const names = [...new Set(entries.map((e) => e.collection).filter(Boolean))]
+  // with a single collection, its environments belong to it; otherwise match by name
+  if (names.length === 1) for (const e of envs) if (!e.collection) e.collection = names[0]
+  linkEnvironments(envs, names)
   const notes = [`${cols} collection`, `${entries.length} request`, `${envs.length} environment`]
   return { entries, envs, notes }
 }

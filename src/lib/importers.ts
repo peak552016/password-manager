@@ -303,6 +303,75 @@ export function importPostmanEnvironment(env: PostmanEnvironment): Entry {
   })
 }
 
+// ---- Postman "Export data" dump (Settings → Data): v1 collections ----
+
+interface PmV1Request {
+  name?: string
+  method?: string
+  url?: string
+  headers?: string
+  headerData?: { key: string; value: string; enabled?: boolean }[]
+  dataMode?: string
+  rawModeData?: string
+  data?: { key: string; value: string; enabled?: boolean }[] | null
+  folder?: string | null
+}
+
+export interface PostmanV1Collection {
+  name: string
+  folders?: { id: string; name: string }[]
+  requests: PmV1Request[]
+}
+
+export function isPostmanV1Collection(x: unknown): x is PostmanV1Collection {
+  const c = x as PostmanV1Collection
+  return !!c && typeof c === 'object' && typeof c.name === 'string' && Array.isArray(c.requests)
+}
+
+/** Postman data dumps hold many collections and environments in one JSON. */
+export function isPostmanDump(x: unknown): x is { collections?: unknown[]; environments?: unknown[] } {
+  const d = x as { collections?: unknown[]; environments?: unknown[] }
+  return !!d && typeof d === 'object' && (Array.isArray(d.collections) || Array.isArray(d.environments)) && !('info' in d)
+}
+
+export function importPostmanV1Collection(col: PostmanV1Collection): Entry[] {
+  const folders = new Map((col.folders ?? []).map((f) => [f.id, f.name]))
+  return col.requests.map((r) => {
+    const header: PmKV[] =
+      r.headerData?.filter((h) => h.enabled !== false).map((h) => ({ key: h.key, value: h.value })) ??
+      (r.headers ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map((l) => ({ key: l.slice(0, l.indexOf(':')).trim(), value: l.slice(l.indexOf(':') + 1).trim() }))
+    const kv = (r.data ?? []).filter((d) => d.enabled !== false).map((d) => ({ key: d.key, value: d.value }))
+    const body: PmRequest['body'] =
+      r.dataMode === 'raw' ? { mode: 'raw', raw: r.rawModeData ?? '' } : r.dataMode === 'urlencoded' ? { mode: 'urlencoded', urlencoded: kv } : r.dataMode === 'params' && kv.length ? { mode: 'formdata', formdata: kv } : undefined
+    const req: PmRequest = { method: r.method ?? 'GET', url: r.url ?? '', header, body }
+    const path = [col.name, r.folder ? folders.get(r.folder) : ''].filter(Boolean).join(' / ')
+    return entry({
+      type: 'curl',
+      title: r.name || r.url || 'request',
+      collection: col.name,
+      environment: detectEnvironment(r.name, r.url, col.name),
+      notes: `Postman: ${path}`,
+      values: { curl: toCurl(req), description: `${(r.method ?? 'GET').toUpperCase()} ${r.url ?? ''}` },
+    })
+  })
+}
+
+/** Put environments into the collection whose name they share, e.g. "ekyc SIT" → "eKYC v2". */
+export function linkEnvironments(envs: Entry[], collections: string[]) {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9ก-๙]/g, '')
+  for (const e of envs) {
+    if (e.collection) continue
+    const base = norm(e.title.replace(/(^|[^a-z])(pre[-_ ]?prod|preprod|non[-_ ]?prod|prod|prd|uat|sit|dev|pre|staging|stg)(?=[^a-z]|$)/gi, '$1'))
+    if (base.length < 3) continue
+    const hits = collections.filter((c) => norm(c).includes(base) || base.includes(norm(c)))
+    if (hits.length === 1) e.collection = hits[0]
+  }
+}
+
 /** KEY=value lines of an imported environment / collection-variables entry. */
 export function parseEnvContent(content: string): Record<string, string> {
   const vars: Record<string, string> = {}

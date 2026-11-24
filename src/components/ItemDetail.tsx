@@ -1,11 +1,14 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { BookOpen, ChevronLeft, Clock, ExternalLink, Network, Pencil, Share2, Star, Trash2 } from 'lucide-react'
 import type { DecryptedItem } from '../lib/vault'
 import { isSecretKind, typeOf, type FieldKind } from '../lib/types'
 import { CopyButton, EnvBadge, ItemIcon, RevealButton } from './ui'
 import { dbEngine } from '../lib/format'
+import { extractCurlCredentials } from '../lib/curlinfo'
 
 interface Props {
+  /** variables from .env items in the same หมวด, to fill {{vars}} in cURL */
+  envVars?: EnvVarSet[]
   item: DecryptedItem
   onBack: () => void
   onEdit: () => void
@@ -15,9 +18,28 @@ interface Props {
   toast: (m: string) => void
 }
 
+export interface EnvVarSet {
+  env: string
+  vars: Record<string, string>
+}
+const NO_VARS: EnvVarSet[] = [{ env: '', vars: {} }]
+
+/** Credentials in the cURL; when they differ per environment, one row per environment. */
+function credsByEnv(item: DecryptedItem, sets: EnvVarSet[]) {
+  if (item.type !== 'curl' || !item.values.curl) return []
+  const per = (sets.length ? sets : NO_VARS).map((s) => ({ env: s.env, creds: extractCurlCredentials(item.values.curl, s.vars) }))
+  const out: { label: string; value: string; secret: boolean; unresolved: boolean }[] = []
+  for (const c of per[0].creds) {
+    const variants = per.map((p) => ({ env: p.env, c: p.creds.find((x) => x.label === c.label) ?? c }))
+    if (variants.every((v) => v.c.value === c.value)) out.push(c)
+    else for (const v of variants) out.push({ ...v.c, label: `${v.c.label} (${v.env})` })
+  }
+  return out
+}
+
 const toHref = (url: string) => (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`)
 
-export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, onShare, toast }: Props) {
+export function ItemDetail({ item, envVars = NO_VARS, onBack, onEdit, onDelete, onToggleFavorite, onShare, toast }: Props) {
   const t = typeOf(item.type)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const expires = item.values.expiresAt ? new Date(item.values.expiresAt) : null
@@ -25,6 +47,7 @@ export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, o
   const daysLeft = expires ? Math.ceil((expires.getTime() - now) / 86_400_000) : null
 
   const engine = item.type === 'database' ? dbEngine(item.values) : null
+  const curlCreds = useMemo(() => credsByEnv(item, envVars), [item, envVars])
   return (
     <div className="pane-inner detail" key={item.id}>
       <header className="pane-head">
@@ -83,6 +106,24 @@ export function ItemDetail({ item, onBack, onEdit, onDelete, onToggleFavorite, o
           if (!v) return null
           return <FieldRow key={f.key} i={i} label={f.label} value={v} kind={f.kind} toast={toast} />
         })}
+        {curlCreds.length > 0 && (
+          <>
+            <p className="field-section">ค่าที่ใช้ในคำสั่ง cURL</p>
+            {curlCreds.map((c, i) => (
+              <FieldRow
+                key={`cc${i}`}
+                i={t.fields.length + i}
+                label={c.unresolved ? `${c.label} · ยังไม่มีค่า` : c.label}
+                value={c.value}
+                kind={c.secret && !c.unresolved ? 'secret' : 'mono'}
+                toast={toast}
+              />
+            ))}
+            {curlCreds.some((c) => c.unresolved) && (
+              <p className="hint">ค่าที่เป็น {'{{ตัวแปร}}'} มาจาก Postman Environment นำเข้าไฟล์ Environment ไว้ในหมวดเดียวกันแล้วค่าจะขึ้นเอง</p>
+            )}
+          </>
+        )}
         {item.knowledgeUrl && (
           <Row i={t.fields.length} label="Link Knowledge">
             <a className="knowledge" href={toHref(item.knowledgeUrl)} target="_blank" rel="noopener noreferrer">

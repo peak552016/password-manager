@@ -1,5 +1,5 @@
 // Offline support: cache the app shell. The vault itself lives in IndexedDB, never here.
-const CACHE = 'vault-v15'
+const CACHE = 'vault-v16'
 const SHELL = new URL('./', self.location).href
 
 self.addEventListener('install', (e) => {
@@ -19,7 +19,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return
   e.respondWith(
-    fetch(req)
+    // bypass the browser's HTTP cache (GitHub Pages sends max-age=600) so a reopen gets the new version
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok) {
           const copy = res.clone()

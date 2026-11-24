@@ -814,3 +814,18 @@ body.resizing .list li { animation: none; }
 .export-files li { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .export-files small { color: var(--muted); font-size: 12px; }
 .share-done .howto { text-align: left; max-width: 460px; }
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mode-opt {
+  --c: var(--accent);
+  display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 4px; align-items: center;
+  padding: 14px 16px; text-align: left; cursor: pointer; font: inherit;
+  border-radius: var(--radius); border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--text-2);
+  transition: border-color 0.15s, background 0.15s, transform 0.2s var(--spring);
+}
+.mode-opt svg { width: 20px; height: 20px; color: var(--c); }
+.mode-opt strong { font-size: 15px; font-weight: 600; color: var(--text); }
+.mode-opt small { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.mode-opt:hover { border-color: var(--c); }
+.mode-opt[aria-pressed='true'] { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); transform: translateY(-1px); }
+.zip-compat { margin-top: 8px; }
+@media (max-width: 760px) { .mode-grid { grid-template-columns: 1fr; } }

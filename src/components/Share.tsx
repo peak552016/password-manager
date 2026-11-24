@@ -1,13 +1,13 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { AlertTriangle, CheckCircle2, Database, Download, FileJson, FileSpreadsheet, FileUp, Loader2, Lock, RefreshCw, Send, Share2, Upload, X } from 'lucide-react'
-import { unlock, WrongPasswordError, type DecryptedItem, type Entry } from '../lib/vault'
+import { AlertTriangle, CheckCircle2, Database, Download, FileArchive, FileJson, FileSpreadsheet, FileUp, Loader2, Lock, RefreshCw, Send, Share2, Upload, X } from 'lucide-react'
+import type { DecryptedItem, Entry } from '../lib/vault'
+import { passwordZip } from '../lib/zip'
 import { toDbeaver, toPlainCsv, toPlainJson, toPostmanEnvironment, type ExportFile } from '../lib/exporters'
 import { createShare, generateSharePassword, openShare, isShareFile, type ShareFile } from '../lib/share'
 import { CopyButton } from './ui'
 import { ItemPicker } from './ItemPicker'
 import { CollectionPicker } from './CollectionPicker'
 import { collectionsOf } from '../lib/group'
-import { typeOf } from '../lib/types'
 
 function toEntry(i: DecryptedItem): Entry {
   const e: Partial<DecryptedItem> = { ...i }
@@ -33,20 +33,20 @@ const slug = (s: string) =>
 // Export
 // ---------------------------------------------------------------------------
 
-type Format = 'vault' | 'dbeaver' | 'postman' | 'csv' | 'json'
+type Mode = 'vault' | 'plain'
+type Format = 'dbeaver' | 'postman' | 'csv' | 'json'
 
 const FORMATS: { id: Format; label: string; hint: string; Icon: typeof Lock; color: string; accepts?: string[] }[] = [
-  { id: 'vault', label: 'ไฟล์แชร์ Vault', hint: 'เข้ารหัส ผู้รับเปิดด้วยรหัสแชร์ในแอพนี้', Icon: Lock, color: 'var(--accent)' },
-  { id: 'dbeaver', label: 'DBeaver', hint: 'CSV สำหรับ Import connection ใน DBeaver', Icon: Database, color: '#16a34a', accepts: ['database'] },
+  { id: 'dbeaver', label: 'DBeaver', hint: 'CSV สำหรับ Import connection', Icon: Database, color: '#16a34a', accepts: ['database'] },
   { id: 'postman', label: 'Postman', hint: 'Environment จาก .env / API / Token', Icon: Send, color: '#ff6c37', accepts: ['env', 'api', 'token'] },
-  { id: 'csv', label: 'CSV', hint: 'เปิดใน Excel / ย้ายไปโปรแกรมอื่น', Icon: FileSpreadsheet, color: '#22a06b' },
+  { id: 'csv', label: 'CSV', hint: 'เปิดใน Excel', Icon: FileSpreadsheet, color: '#22a06b' },
   { id: 'json', label: 'JSON', hint: 'ข้อมูลดิบทุกฟิลด์', Icon: FileJson, color: '#a78bfa' },
 ]
 
-function download(f: ExportFile) {
+function save(blob: Blob, name: string) {
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([f.text], { type: f.mime }))
-  a.download = f.name
+  a.href = URL.createObjectURL(blob)
+  a.download = name
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
@@ -66,13 +66,11 @@ export function ShareExport({
   const [name, setName] = useState('')
   const [password, setPassword] = useState(generateSharePassword)
   const [busy, setBusy] = useState(false)
-  const [done, setDone] = useState<{ file: string; count: number; files?: ExportFile[] } | null>(null)
-  const [format, setFormat] = useState<Format>('vault')
-  const [master, setMaster] = useState('')
   const [error, setError] = useState('')
-  const fmt = FORMATS.find((f) => f.id === format)!
-  const plain = format !== 'vault'
-  const usable = items.filter((i) => selected.has(i.id) && (!fmt.accepts || fmt.accepts.includes(i.type)))
+  const [mode, setMode] = useState<Mode>('vault')
+  const [formats, setFormats] = useState<Set<Format>>(() => new Set(['dbeaver']))
+  const [winZip, setWinZip] = useState(false)
+  const [done, setDone] = useState<{ file: string; count: number; files?: ExportFile[] } | null>(null)
 
   const toggle = (id: string) =>
     setSelected((s) => {
@@ -81,85 +79,49 @@ export function ShareExport({
       else n.add(id)
       return n
     })
+  const toggleFormat = (f: Format) =>
+    setFormats((s) => {
+      const n = new Set(s)
+      if (n.has(f)) n.delete(f)
+      else n.add(f)
+      return n
+    })
+
+  const chosen = items.filter((i) => selected.has(i.id))
 
   async function doExport() {
-    if (plain) return doPlainExport()
-    setBusy(true)
-    try {
-      const chosen = items.filter((i) => selected.has(i.id)).map(toEntry)
-      const share = await createShare(chosen, password, name.trim())
-      const file = `vault-share-${slug(name)}-${new Date().toISOString().slice(0, 10)}.json`
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(new Blob([JSON.stringify(share)], { type: 'application/json' }))
-      a.download = file
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-      setDone({ file, count: chosen.length })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function doPlainExport() {
+    const stamp = new Date().toISOString().slice(0, 10)
     setBusy(true)
     setError('')
     try {
-      // plain files leave the vault unprotected: ask for the master password again
-      await unlock(master)
-      const chosen = usable.map(toEntry)
-      const base = `vault-${slug(name)}-${new Date().toISOString().slice(0, 10)}`
-      const files =
-        format === 'dbeaver'
-          ? toDbeaver(chosen, base)
-          : format === 'postman'
-            ? toPostmanEnvironment(chosen, name.trim() || 'Vault')
-            : format === 'csv'
-              ? toPlainCsv(chosen, base)
-              : toPlainJson(chosen, base)
-      if (!files.length) throw new Error('รายการที่เลือกไม่มีข้อมูลสำหรับรูปแบบนี้')
-      files.forEach((f, i) => setTimeout(() => download(f), i * 300))
-      setMaster('')
-      setDone({ file: files.map((f) => f.name).join(', '), count: chosen.length, files })
+      const entries = chosen.map(toEntry)
+      if (mode === 'vault') {
+        const share = await createShare(entries, password, name.trim())
+        const file = `vault-share-${slug(name)}-${stamp}.json`
+        save(new Blob([JSON.stringify(share)], { type: 'application/json' }), file)
+        setDone({ file, count: entries.length })
+        return
+      }
+      const base = `vault-${slug(name)}-${stamp}`
+      const files = [...formats].flatMap((f) =>
+        f === 'dbeaver'
+          ? toDbeaver(entries, base)
+          : f === 'postman'
+            ? toPostmanEnvironment(entries, name.trim() || 'Vault')
+            : f === 'csv'
+              ? toPlainCsv(entries, base)
+              : toPlainJson(entries, base),
+      )
+      if (!files.length) throw new Error('รายการที่เลือกไม่มีข้อมูลสำหรับรูปแบบที่เลือก')
+      const file = `${base}.zip`
+      save(await passwordZip(files, password, winZip), file)
+      setDone({ file, count: entries.length, files })
     } catch (e) {
-      setError(e instanceof WrongPasswordError ? 'master password ไม่ถูกต้อง' : e instanceof Error ? e.message : String(e))
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
   }
-
-  if (done?.files)
-    return (
-      <div className="pane-inner">
-        <div className="share-done">
-          <CheckCircle2 className="big-check" />
-          <h2>ส่งออก {done.count} รายการแล้ว</h2>
-          <p className="muted">ไฟล์อยู่ในโฟลเดอร์ Downloads</p>
-          <ul className="export-files">
-            {done.files.map((f) => (
-              <li key={f.name}>
-                <code>{f.name}</code>
-                {f.note && <small>{f.note}</small>}
-              </li>
-            ))}
-          </ul>
-          {format === 'dbeaver' && (
-            <ol className="howto">
-              <li>
-                เปิด DBeaver → <b>File → Import</b> → หมวด DBeaver เลือก <b>Custom (CSV/XML)</b>
-              </li>
-              <li>เลือก driver ให้ตรงกับไฟล์ (เช่น PostgreSQL) แล้วเลือกไฟล์ CSV</li>
-              <li>ติ๊ก connection ที่ต้องการแล้วกด Finish (ถ้ามีหลายไฟล์ ทำทีละไฟล์)</li>
-            </ol>
-          )}
-          <p className="share-tip">
-            <AlertTriangle /> ไฟล์นี้ไม่ได้เข้ารหัส ใครได้ไฟล์ไปก็เห็นรหัสผ่านทั้งหมด นำเข้าเสร็จแล้วให้ลบทิ้ง (และล้างถังขยะ) อย่าส่งทางแชทหรืออีเมล
-          </p>
-          <button className="btn" onClick={onClose}>
-            เสร็จแล้ว
-          </button>
-        </div>
-      </div>
-    )
 
   if (done)
     return (
@@ -172,10 +134,39 @@ export function ShareExport({
           </p>
           <div className="share-pass big">
             <span className="mono">{password}</span>
-            <CopyButton value={password} label="รหัสแชร์" onCopied={toast} />
+            <CopyButton value={password} label={done.files ? 'รหัส ZIP' : 'รหัสแชร์'} onCopied={toast} />
           </div>
+          {done.files && (
+            <>
+              <p className="muted">
+                แตกไฟล์ด้วย{winZip ? ' Windows (คลิกขวา → Extract All) หรือ 7-Zip' : ' 7-Zip หรือ WinRAR'} แล้วใส่รหัสด้านบน ในนั้นมี
+              </p>
+              <ul className="export-files">
+                {done.files.map((f) => (
+                  <li key={f.name}>
+                    <code>{f.name}</code>
+                    {f.note && <small>{f.note}</small>}
+                  </li>
+                ))}
+              </ul>
+              {done.files.some((f) => f.name.includes('-dbeaver-')) && (
+                <ol className="howto">
+                  <li>
+                    เปิด DBeaver → <b>File → Import</b> → หมวด DBeaver เลือก <b>Custom (CSV/XML)</b>
+                  </li>
+                  <li>เลือก driver ให้ตรงกับไฟล์ (เช่น PostgreSQL) แล้วเลือกไฟล์ CSV ที่แตกออกมา</li>
+                  <li>ติ๊ก connection ที่ต้องการแล้วกด Finish (ถ้ามีหลายไฟล์ ทำทีละไฟล์)</li>
+                </ol>
+              )}
+              <p className="share-tip">
+                <AlertTriangle />
+                <span>ไฟล์ที่แตกออกมาไม่มีรหัสแล้ว นำเข้าเสร็จให้ลบทิ้ง (และล้างถังขยะ)</span>
+              </p>
+            </>
+          )}
           <p className="share-tip">
-            <AlertTriangle /> ส่งไฟล์กับรหัสแชร์คนละช่องทาง เช่น ไฟล์ทางอีเมล รหัสทาง LINE หรือบอกปากเปล่า
+            <AlertTriangle />
+            <span>ถ้าส่งให้คนอื่น ส่งไฟล์กับรหัสคนละช่องทาง เช่น ไฟล์ทางอีเมล รหัสทาง LINE หรือบอกปากเปล่า</span>
           </p>
           <button className="btn" onClick={onClose}>
             เสร็จแล้ว
@@ -183,6 +174,9 @@ export function ShareExport({
         </div>
       </div>
     )
+
+  const plainCount = mode === 'plain' ? chosen.filter((i) => [...formats].some((f) => !FORMATS.find((x) => x.id === f)!.accepts || FORMATS.find((x) => x.id === f)!.accepts!.includes(i.type))).length : 0
+  const canExport = chosen.length > 0 && password.length >= 8 && !busy && (mode === 'vault' || (formats.size > 0 && plainCount > 0))
 
   return (
     <div className="pane-inner">
@@ -193,7 +187,7 @@ export function ShareExport({
           </span>
           <div>
             <p className="eyebrow">ส่งออก</p>
-            <h2>{plain ? `ส่งออกเป็น ${fmt.label}` : 'เลือกรายการที่จะแชร์'}</h2>
+            <h2>{mode === 'vault' ? 'ไฟล์แชร์ Vault' : 'ไฟล์ใช้งานได้เลย'}</h2>
           </div>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="ปิด">
@@ -202,40 +196,44 @@ export function ShareExport({
       </header>
 
       <div className="form-body">
-        <div className="form-row">
-          <span className="form-label">รูปแบบไฟล์</span>
-          <div className="format-grid">
-            {FORMATS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                className="format-opt"
-                aria-pressed={format === f.id}
-                onClick={() => {
-                  setFormat(f.id)
-                  setError('')
-                }}
-                style={{ '--c': f.color } as CSSProperties}
-              >
-                <f.Icon />
-                <strong>{f.label}</strong>
-                <small>{f.hint}</small>
-              </button>
-            ))}
-          </div>
-          {plain && (
-            <p className="share-tip warn-left">
-              <AlertTriangle />
-              <span>
-                ไฟล์รูปแบบนี้<b>ไม่ได้เข้ารหัส</b> รหัสผ่านอยู่ในไฟล์เป็นข้อความธรรมดา ใช้เสร็จแล้วให้ลบทิ้ง ถ้าจะส่งให้คนอื่นให้ใช้ “ไฟล์แชร์ Vault”
-              </span>
-            </p>
-          )}
+        <div className="mode-grid">
+          <button type="button" className="mode-opt" aria-pressed={mode === 'vault'} onClick={() => setMode('vault')} style={{ '--c': 'var(--accent)' } as CSSProperties}>
+            <Lock />
+            <strong>ไฟล์แชร์ Vault</strong>
+            <small>ผู้รับเปิดในแอพนี้ด้วยรหัสแชร์ เพิ่มเข้าคลังได้ทันที</small>
+          </button>
+          <button type="button" className="mode-opt" aria-pressed={mode === 'plain'} onClick={() => setMode('plain')} style={{ '--c': '#f59e0b' } as CSSProperties}>
+            <FileArchive />
+            <strong>ไฟล์ใช้งานได้เลย</strong>
+            <small>DBeaver / Postman / CSV / JSON ใส่ใน ZIP ที่ล็อกด้วยรหัส</small>
+          </button>
         </div>
 
+        {mode === 'plain' && (
+          <div className="form-row">
+            <span className="form-label">ใส่อะไรใน ZIP (เลือกได้หลายอย่าง)</span>
+            <div className="format-grid">
+              {FORMATS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  className="format-opt"
+                  aria-pressed={formats.has(f.id)}
+                  onClick={() => toggleFormat(f.id)}
+                  style={{ '--c': f.color } as CSSProperties}
+                >
+                  <f.Icon />
+                  <strong>{f.label}</strong>
+                  <small>{f.hint}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <label className="form-row">
-          <span className="form-label">{plain ? 'ชื่อไฟล์ / ชื่อ environment' : 'ชื่อชุด (ผู้รับจะเห็น)'}</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น Claim API – UAT" autoFocus />
+          <span className="form-label">{mode === 'vault' ? 'ชื่อชุด (ผู้รับจะเห็น)' : 'ชื่อไฟล์ / ชื่อ environment'}</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น Claim API – UAT" />
         </label>
 
         <div className="form-row">
@@ -255,44 +253,38 @@ export function ShareExport({
           <ItemPicker items={items} selected={selected} onToggle={toggle} />
         </div>
 
-        {plain ? (
-          <label className="form-row">
-            <span className="form-label">ยืนยัน master password</span>
-            <input
-              type="password"
-              value={master}
-              onChange={(e) => setMaster(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && master && usable.length && doExport()}
-              autoComplete="current-password"
-            />
-            {error && <p className="hint error">{error}</p>}
-          </label>
-        ) : (
         <div className="form-row">
-          <span className="form-label">รหัสแชร์ (ผู้รับต้องใช้เปิดไฟล์)</span>
+          <span className="form-label">{mode === 'vault' ? 'รหัสแชร์ (ผู้รับต้องใช้เปิดไฟล์)' : 'รหัส ZIP (ต้องใช้ตอนแตกไฟล์)'}</span>
           <div className="input-group">
             <input className="mono" value={password} onChange={(e) => setPassword(e.target.value)} spellCheck={false} autoComplete="off" />
             <button className="icon-btn" title="สุ่มใหม่" onClick={() => setPassword(generateSharePassword())}>
               <RefreshCw />
             </button>
-            <CopyButton value={password} label="รหัสแชร์" onCopied={toast} />
+            <CopyButton value={password} label="รหัส" onCopied={toast} />
           </div>
-          <p className="hint">รหัสนี้แยกจาก master password ของคุณ ผู้รับจะไม่รู้ master password และเปิดคลังของคุณไม่ได้</p>
-        </div>
-        )}
-
-        <div>
-          {plain ? (
-            <button className="btn primary" disabled={!usable.length || !master || busy} onClick={doExport}>
-              {busy ? <Loader2 className="spin" /> : <Download />} ส่งออก {usable.length || ''} รายการ
-              {fmt.accepts && usable.length !== selected.size && <small> (จากที่เลือก {selected.size})</small>}
-            </button>
+          {mode === 'vault' ? (
+            <p className="hint">รหัสนี้แยกจาก master password ของคุณ ผู้รับจะไม่รู้ master password และเปิดคลังของคุณไม่ได้</p>
           ) : (
-            <button className="btn primary" disabled={!selected.size || password.length < 8 || busy} onClick={doExport}>
-              {busy ? <Loader2 className="spin" /> : <Download />} ส่งออก {selected.size || ''} รายการ
-            </button>
+            <label className="check-row zip-compat">
+              <input type="checkbox" checked={winZip} onChange={(e) => setWinZip(e.target.checked)} />
+              <span>
+                ให้เปิดด้วย Windows ได้โดยไม่ต้องลงโปรแกรม
+                <small className="muted">
+                  ปกติใช้ AES-256 ซึ่งต้องเปิดด้วย 7-Zip / WinRAR ถ้าติ๊กจะใช้ ZipCrypto ที่ Windows เปิดเองได้ แต่ล็อกได้อ่อนกว่ามาก
+                </small>
+              </span>
+            </label>
           )}
-          {plain && fmt.accepts && <p className="hint">รูปแบบนี้ใช้ได้กับ {fmt.accepts.map((t) => typeOf(t).label).join(', ')} เท่านั้น</p>}
+        </div>
+
+        {error && <p className="hint error">{error}</p>}
+        <div>
+          <button className="btn primary" disabled={!canExport} onClick={doExport}>
+            {busy ? <Loader2 className="spin" /> : <Download />} ส่งออก {(mode === 'vault' ? selected.size : plainCount) || ''} รายการ
+          </button>
+          {mode === 'plain' && plainCount < selected.size && (
+            <p className="hint">บางรายการไม่เข้ากับรูปแบบที่เลือก (DBeaver ใช้ได้กับ Database, Postman ใช้ได้กับ .env / API / Token)</p>
+          )}
         </div>
       </div>
     </div>

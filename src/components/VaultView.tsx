@@ -7,7 +7,8 @@ import { ItemEditor } from './ItemEditor'
 import { ItemDetail } from './ItemDetail'
 import { Settings } from './Settings'
 import { TypePicker } from './TypePicker'
-import { ShareExport, ShareImport } from './Share'
+import { ShareExport } from './Share'
+import { ImportTools } from './ImportTools'
 import { EnvBadge, Kbd, Toast, TypeIcon } from './ui'
 import { useToast } from '../lib/useToast'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
@@ -169,7 +170,8 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       break
     case 'import':
       paneContent = (
-        <ShareImport
+        <ImportTools
+          toast={setToast}
           existing={items ?? []}
           onClose={() => setPane({ kind: 'empty' })}
           onImport={async (entries) => {
@@ -252,7 +254,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
           </button>
           <button className="nav-item" aria-current={pane.kind === 'import'} onClick={() => setPane({ kind: 'import' })}>
             <Download className="nav-ic" />
-            <span>นำเข้าไฟล์แชร์</span>
+            <span>นำเข้า</span>
           </button>
           <ThemeCycle />
           <button className="nav-item" aria-current={pane.kind === 'settings'} onClick={() => setPane({ kind: 'settings' })}>

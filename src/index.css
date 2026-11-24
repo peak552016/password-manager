@@ -666,3 +666,29 @@ html.theme-anim, html.theme-anim * { transition: background-color 0.35s ease, bo
 .share-pass { display: inline-flex; align-items: center; gap: 8px; padding: 6px 6px 6px 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-strong); }
 .share-pass.big .mono { font-size: 22px; font-weight: 600; letter-spacing: 0.04em; }
 .share-tip { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--warn); max-width: 460px; }
+
+/* import tools */
+.src-tabs { display: flex; gap: 6px; margin: -8px 0 22px; flex-wrap: wrap; }
+.src-tabs button {
+  --c: var(--accent);
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-2);
+  font-size: 14px; font-weight: 500;
+  transition: all 0.2s var(--ease);
+}
+.src-tabs button svg { width: 16px; height: 16px; color: var(--c); }
+.src-tabs button:hover { border-color: var(--c); }
+.src-tabs button[aria-selected='true'] { color: var(--text); border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, var(--surface)); box-shadow: 0 6px 18px -10px var(--c); }
+.howto { margin: 0; padding: 14px 16px 14px 34px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-2); animation: rise 0.3s var(--ease) both; }
+.howto b { color: var(--text); font-weight: 600; }
+.howto code { font-family: var(--mono); font-size: 12.5px; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color: var(--text); }
+.howto .path { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.howto .path code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 6px 10px; }
+.howto li.warn { list-style: none; margin-left: -18px; display: flex; gap: 8px; align-items: flex-start; color: var(--warn); }
+.howto li.warn svg { width: 16px; height: 16px; margin-top: 2px; }
+.import-summary { display: flex; flex-wrap: wrap; gap: 6px; }
+.import-summary span { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 500; animation: pop 0.35s var(--spring) both; }
+select { font: inherit; font-size: 14px; padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+.embedded-title { font-size: 17px; margin-bottom: 14px; }
+.dropzone svg { width: 20px; height: 20px; color: var(--accent); }

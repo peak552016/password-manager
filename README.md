@@ -46,6 +46,16 @@ npm run build     # build ไปที่ dist/
 
 คีย์ลัด: `Ctrl K` ค้นหา · `Ctrl N` รายการใหม่ · `Ctrl L` ล็อก
 
+## นำเข้าจากโปรแกรมอื่น (แถบซ้าย → นำเข้า)
+
+- **DBeaver:** เลือก `data-sources.json` + `credentials-config.json` จาก `%APPDATA%\DBeaverData\workspace6\General\.dbeaver`
+  แอพถอดรหัส credentials ด้วย key มาตรฐานของ DBeaver ในเบราว์เซอร์ แล้วสร้างรายการ Database (host, port, database, user, password)
+  ถ้าตั้ง master password ใน DBeaver ไว้จะถอดรหัสไม่ได้
+- **Postman:** export Collection (v2.1) และ Environment แล้วเลือกพร้อมกัน ทุก request กลายเป็นรายการ cURL
+  (รวม auth ที่สืบทอดจาก folder/collection) environment กลายเป็นรายการ .env และเลือกแทนค่า `{{ตัวแปร}}` ด้วย environment ได้
+  Postman ส่งออกเฉพาะ Initial value
+- Environment ถูกเดาจากชื่อ เช่น `customer - UAT`, `kyc - pre`, `ekyc SIT` (`src/lib/importers.ts`)
+
 ## แชร์ให้คนอื่น
 
 - **ส่งออกเพื่อแชร์** (แถบซ้ายล่าง หรือปุ่มแชร์ในหน้ารายการ): เลือกรายการ ตั้งชื่อชุด แล้วได้ไฟล์ `vault-share-….json` กับรหัสแชร์

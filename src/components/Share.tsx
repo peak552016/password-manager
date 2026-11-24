@@ -2,8 +2,8 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2, RefreshCw, Share2, Upload, X } from 'lucide-react'
 import type { DecryptedItem, Entry } from '../lib/vault'
 import { createShare, generateSharePassword, openShare, isShareFile, type ShareFile } from '../lib/share'
-import { typeOf } from '../lib/types'
-import { CopyButton, EnvBadge, TypeIcon } from './ui'
+import { CopyButton } from './ui'
+import { ItemPicker } from './ItemPicker'
 
 function toEntry(i: DecryptedItem): Entry {
   const e: Partial<DecryptedItem> = { ...i }
@@ -166,10 +166,13 @@ export function ShareImport({
   existing,
   onImport,
   onClose,
+  embedded,
 }: {
   existing: DecryptedItem[]
   onImport: (entries: Entry[]) => Promise<void>
   onClose: () => void
+  /** rendered inside the import tabs: no own frame/header */
+  embedded?: boolean
 }) {
   const [file, setFile] = useState<File | null>(null)
   const [pw, setPw] = useState('')
@@ -212,7 +215,10 @@ export function ShareImport({
   const pickerItems = opened?.entries.map((e, i) => ({ ...e, id: String(i), updatedAt: 0 })) ?? []
 
   return (
-    <div className="pane-inner">
+    <div className={embedded ? '' : 'pane-inner'}>
+      {embedded ? (
+        opened && <h3 className="embedded-title">{opened.name || 'ชุดที่ได้รับ'}</h3>
+      ) : (
       <header className="pane-head">
         <div className="head-title">
           <span className="type-icon lg" style={{ '--c': '#5a6cf6' } as CSSProperties}>
@@ -227,6 +233,7 @@ export function ShareImport({
           <X />
         </button>
       </header>
+      )}
 
       {!opened ? (
         <div className="form-body">
@@ -279,36 +286,5 @@ export function ShareImport({
         </div>
       )}
     </div>
-  )
-}
-
-function ItemPicker({
-  items,
-  selected,
-  onToggle,
-  dupIds,
-}: {
-  items: (Entry & { id: string })[]
-  selected: Set<string>
-  onToggle: (id: string) => void
-  dupIds?: Set<string>
-}) {
-  return (
-    <ul className="picker">
-      {items.map((i, idx) => (
-        <li key={i.id} style={{ '--i': Math.min(idx, 12) } as CSSProperties}>
-          <label className={`pick ${selected.has(i.id) ? 'on' : ''}`}>
-            <input type="checkbox" checked={selected.has(i.id)} onChange={() => onToggle(i.id)} />
-            <TypeIcon type={i.type} size="sm" />
-            <span className="pick-title">
-              {i.title || '(ไม่มีชื่อ)'}
-              <small>{typeOf(i.type).label}</small>
-            </span>
-            {dupIds?.has(i.id) && <span className="dup">มีอยู่แล้ว</span>}
-            {i.environment && <EnvBadge env={i.environment} />}
-          </label>
-        </li>
-      ))}
-    </ul>
   )
 }

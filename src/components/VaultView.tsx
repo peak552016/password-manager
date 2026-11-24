@@ -11,6 +11,7 @@ import { ShareExport } from './Share'
 import { ImportTools } from './ImportTools'
 import { EnvBadge, ItemIcon, Kbd, Toast } from './ui'
 import { collectionsOf, groupRows } from '../lib/group'
+import { useSearchFirst } from '../lib/prefs'
 import { useToast } from '../lib/useToast'
 import { databaseSummary, shortHost } from '../lib/format'
 import { ThemeCycle, ThemeSwitch } from './ThemeSwitch'
@@ -38,6 +39,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   const [collFilter, setCollFilter] = useState<string | null>(null)
   const [toggled, setToggled] = useState<Map<string, boolean>>(new Map())
   const [listW, setListW] = useState(readListWidth)
+  const searchFirst = useSearchFirst()
   const [pane, setPane] = useState<Pane>({ kind: 'empty' })
   const [toast, setToast] = useToast()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -133,6 +135,9 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       </button>
     </li>
   )
+
+  // search-first: nothing is listed until the user searches or picks a หมวด / favourites on purpose
+  const hidden = searchFirst && !query.trim() && collFilter === null && typeFilter !== 'fav'
 
   const selectedId = pane.kind === 'detail' || pane.kind === 'edit' ? pane.id : null
   const selected = selectedId ? items?.find((i) => i.id === selectedId) : undefined
@@ -230,7 +235,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       paneContent = <Settings onBack={() => setPane({ kind: 'empty' })} onReplaced={onLock} />
       break
     default:
-      paneContent = <EmptyPane total={counts.all} onNew={() => setPane({ kind: 'pick' })} />
+      paneContent = <EmptyPane total={counts.all} hidden={hidden} onNew={() => setPane({ kind: 'pick' })} />
   }
 
   return (
@@ -343,6 +348,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             <Search />
             <input
               ref={searchRef}
+              autoFocus
               type="search"
               placeholder="ค้นหา"
               value={query}
@@ -367,6 +373,14 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="sk" style={{ '--i': i } as CSSProperties} />
             ))}
+          </div>
+        ) : hidden ? (
+          <div className="list-hidden">
+            <Search />
+            <p>พิมพ์ชื่อเพื่อค้นหา</p>
+            <small>
+              {items.length ? `ซ่อนไว้ ${items.length} รายการ · เช่น "customer" หรือ "uat"` : 'ยังไม่มีรายการ'}
+            </small>
           </div>
         ) : filtered.length === 0 ? (
           <p className="list-empty">{items.length ? 'ไม่พบรายการที่ตรงกัน' : 'ยังไม่มีรายการ'}</p>
@@ -446,13 +460,13 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   )
 }
 
-function EmptyPane({ total, onNew }: { total: number; onNew: () => void }) {
+function EmptyPane({ total, hidden, onNew }: { total: number; hidden: boolean; onNew: () => void }) {
   return (
     <div className="empty-pane">
       <div className="orb" aria-hidden>
         <ShieldCheck strokeWidth={1.4} />
       </div>
-      <h2>{total ? 'เลือกรายการทางซ้าย' : 'คลังของคุณพร้อมแล้ว'}</h2>
+      <h2>{!total ? 'คลังของคุณพร้อมแล้ว' : hidden ? 'ค้นหารายการทางซ้าย' : 'เลือกรายการทางซ้าย'}</h2>
       <p className="muted">
         {total ? `มีทั้งหมด ${total} รายการ เข้ารหัสอยู่ในเครื่องนี้` : 'เริ่มเก็บรหัสผ่าน API key, token หรือ cURL แรกของคุณ'}
       </p>

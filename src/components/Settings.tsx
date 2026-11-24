@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { ChevronLeft, Download, KeyRound, ShieldCheck, Upload } from 'lucide-react'
+import { ChevronLeft, Download, EyeOff, KeyRound, ShieldCheck, Upload } from 'lucide-react'
+import { setSearchFirst, useSearchFirst } from '../lib/prefs'
 import { changeMasterPassword, exportBackup, WrongPasswordError } from '../lib/vault'
 import { estimateBits } from '../lib/generator'
 import { Strength } from './Strength'
@@ -10,6 +11,7 @@ const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(naviga
 export function Settings({ onBack, onReplaced }: { onBack: () => void; onReplaced: () => void }) {
   const [importing, setImporting] = useState(false)
   const [msg, setMsg] = useState('')
+  const searchFirst = useSearchFirst()
 
   async function doExport() {
     const backup = await exportBackup()
@@ -72,6 +74,19 @@ export function Settings({ onBack, onReplaced }: { onBack: () => void; onReplace
             </button>
           </div>
           {msg && <p className="hint ok">{msg}</p>}
+        </section>
+
+        <section className="card">
+          <h3>
+            <EyeOff /> ความเป็นส่วนตัว
+          </h3>
+          <label className="check-row">
+            <input type="checkbox" checked={searchFirst} onChange={(e) => setSearchFirst(e.target.checked)} />
+            <span>
+              ซ่อนรายการจนกว่าจะค้นหา
+              <small className="muted">เข้ามาแล้วจะไม่เห็นรายการ ต้องพิมพ์ชื่อในช่องค้นหาก่อน หรือกดเลือกหมวด / รายการโปรด</small>
+            </span>
+          </label>
         </section>
 
         <ChangePassword />

@@ -774,3 +774,17 @@ body.resizing .list li { animation: none; }
 .coll-opt.add { border-style: dashed; }
 .coll-new { width: 220px !important; padding: 6px 12px !important; border-radius: 99px !important; font-size: 13px !important; }
 .nav-item.coll span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- search-first ---------- */
+.list-hidden {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 72px 20px; text-align: center; color: var(--muted);
+  animation: rise 0.4s var(--ease) both;
+}
+.list-hidden svg { width: 30px; height: 30px; color: var(--accent); opacity: 0.8; margin-bottom: 6px; }
+.list-hidden p { margin: 0; color: var(--text-2); font-size: 15px; font-weight: 500; }
+.list-hidden small { font-size: 12.5px; }
+.check-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check-row input { margin-top: 4px; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+.check-row span { display: flex; flex-direction: column; gap: 2px; }
+.check-row small { font-size: 12.5px; }

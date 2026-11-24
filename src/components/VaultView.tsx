@@ -369,7 +369,8 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
                 runSearch()
                 if (searchFirst) return
               }
-              if (filtered[0]) setPane({ kind: 'detail', id: filtered[0].id })
+              // Enter on an empty / hidden list never opens anything
+              if (!hidden && draft.trim() && filtered[0]) setPane({ kind: 'detail', id: filtered[0].id })
             }}
           >
             <button type="submit" className="search-go" aria-label="ค้นหา" title="ค้นหา (Enter)">

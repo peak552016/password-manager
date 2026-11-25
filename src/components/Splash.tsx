@@ -1,26 +1,21 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck } from 'lucide-react'
+import { ArrowRight, ShieldCheck } from 'lucide-react'
 
-const DURATION = 3500
 const EXIT = 550
 
-/** Intro shown once each time the app opens. Click or any key skips it. */
+/** Intro shown each time the app opens; stays until the user taps "เข้าสู่ระบบ" (or presses a key). */
 export function Splash({ ready, onLeave, onDone }: { ready: boolean; onLeave: () => void; onDone: () => void }) {
-  const [minElapsed, setMinElapsed] = useState(false)
-  const [skipped, setSkipped] = useState(false)
+  const [entered, setEntered] = useState(false)
 
   useEffect(() => {
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-    const t = setTimeout(() => setMinElapsed(true), reduced ? 400 : DURATION)
-    const skip = () => setSkipped(true)
-    window.addEventListener('keydown', skip)
-    return () => {
-      clearTimeout(t)
-      window.removeEventListener('keydown', skip)
+    const enter = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') setEntered(true)
     }
+    window.addEventListener('keydown', enter)
+    return () => window.removeEventListener('keydown', enter)
   }, [])
 
-  const leaving = ready && (minElapsed || skipped)
+  const leaving = ready && entered
 
   useEffect(() => {
     if (!leaving) return
@@ -32,7 +27,7 @@ export function Splash({ ready, onLeave, onDone }: { ready: boolean; onLeave: ()
   const word = 'Password Manager'
 
   return (
-    <div className={`splash ${leaving ? 'leaving' : ''}`} onClick={() => setSkipped(true)} role="presentation">
+    <div className={`splash ${leaving ? 'leaving' : ''}`} onClick={() => setEntered(true)} role="presentation">
       <div className="splash-glow" aria-hidden />
       <div className="splash-content">
         <div className="splash-mark">
@@ -51,11 +46,11 @@ export function Splash({ ready, onLeave, onDone }: { ready: boolean; onLeave: ()
           ))}
         </h1>
         <p className="splash-sub">ที่เก็บรหัสผ่าน · API key · token ของคุณ เข้ารหัสอยู่ในเครื่องนี้</p>
-        <div className="splash-bar" aria-hidden>
-          <span />
-        </div>
+        <button className="splash-enter" onClick={() => setEntered(true)} autoFocus>
+          เข้าสู่ระบบ <ArrowRight />
+        </button>
       </div>
-      <p className="splash-skip">คลิกหรือกดปุ่มใดก็ได้เพื่อข้าม</p>
+      <p className="splash-skip">แตะที่ไหนก็ได้ หรือกด Enter</p>
     </div>
   )
 }

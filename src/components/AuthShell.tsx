@@ -20,7 +20,6 @@ export function AuthShell({ title, subtitle, children, shake }: { title: string;
         {subtitle && <p className="muted">{subtitle}</p>}
         {children}
       </div>
-      <p className="auth-foot">เข้ารหัสในเครื่อง · AES-256-GCM · Argon2id</p>
     </main>
   )
 }

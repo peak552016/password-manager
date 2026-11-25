@@ -857,3 +857,21 @@ body.resizing .list li { animation: none; }
   .manage-note, .manage-head .nav-chev { display: none; }
 }
 .field-section { margin: 0; padding: 16px 16px 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.splash-enter {
+  margin-top: 30px; display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 26px; border: none; border-radius: 99px; cursor: pointer;
+  font: inherit; font-size: 16px; font-weight: 600; color: #0a0c10;
+  background: linear-gradient(135deg, var(--accent), #5a6cf6);
+  box-shadow: 0 10px 30px -8px color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: rise 0.6s 1.6s var(--ease) both, enter-pulse 2.4s 2.4s ease-in-out infinite;
+  transition: transform 0.2s var(--spring);
+}
+.splash-enter svg { width: 18px; height: 18px; transition: transform 0.2s var(--spring); }
+.splash-enter:hover { transform: translateY(-2px); }
+.splash-enter:hover svg { transform: translateX(3px); }
+.splash-enter:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+@keyframes enter-pulse {
+  0%, 100% { box-shadow: 0 10px 30px -8px color-mix(in srgb, var(--accent) 60%, transparent); }
+  50% { box-shadow: 0 10px 44px -4px color-mix(in srgb, var(--accent) 85%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .splash-enter { animation: none; } }

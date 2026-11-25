@@ -161,7 +161,10 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
   )
 
   // search-first: nothing is listed until the user searches or picks a หมวด / favourites on purpose
-  const hidden = searchFirst && !showAll && !query.trim() && collFilter === null && typeFilter !== 'fav'
+  // locked: search-first mode without the PIN-unlocked "ดูทั้งหมด" — the sidebar must not reveal
+  // what is in the vault (no หมวด names, no counts, no env list), only a search can show items
+  const locked = searchFirst && !showAll
+  const hidden = locked && !query.trim()
   // when the list hides again (search cleared), close the open item too
   const [wasHidden, setWasHidden] = useState(hidden)
   if (hidden !== wasHidden) {
@@ -290,7 +293,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
       paneContent = <Settings vaultId={session.vaultId} onBack={() => setPane({ kind: 'empty' })} onReplaced={onLock} />
       break
     default:
-      paneContent = <EmptyPane total={counts.all} hidden={hidden} onNew={() => setPane({ kind: 'pick' })} />
+      paneContent = <EmptyPane total={counts.all} hidden={locked} onNew={() => setPane({ kind: 'pick' })} />
   }
 
   return (
@@ -317,10 +320,10 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             >
               <n.Icon className="nav-ic" />
               <span>{n.label}</span>
-              <em>{counts[n.id] || ''}</em>
+              <em>{locked ? '' : counts[n.id] || ''}</em>
             </button>
           ))}
-          {collections.length > 0 && (
+          {!locked && collections.length > 0 && (
             <>
               <p className="nav-heading">หมวด</p>
               {[...collections, ...(collCounts[''] ? [''] : [])].map((c) => (
@@ -350,10 +353,10 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             >
               <t.Icon className="nav-ic" />
               <span>{t.label}</span>
-              <em>{counts[t.id] || ''}</em>
+              <em>{locked ? '' : counts[t.id] || ''}</em>
             </button>
           ))}
-          {envs.length > 0 && (
+          {!locked && envs.length > 0 && (
             <>
               <p className="nav-heading">Environment</p>
               <div className="env-filter">
@@ -390,6 +393,8 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
                   onClick={() => {
                     if (showAll) {
                       setShowAll(false)
+                      setCollFilter(null)
+                      setEnvFilter('')
                       if (!query.trim() && pane.kind === 'detail') setPane({ kind: 'empty' })
                     } else if (pinOk) setShowAll(true)
                     else setPane({ kind: 'pin' })
@@ -485,7 +490,7 @@ export function VaultView({ session, onLock }: { session: Session; onLock: () =>
             <Search />
             <p>{pending ? 'กด Enter เพื่อค้นหา' : 'พิมพ์ชื่อแล้วกด Enter'}</p>
             <small>
-              {items.length ? `ซ่อนไว้ ${items.length} รายการ · เช่น "customer" หรือ "uat"` : 'ยังไม่มีรายการ'}
+              {items.length ? 'รายการถูกซ่อนไว้ ค้นหาด้วยชื่อ หมวด หรือ env' : 'ยังไม่มีรายการ'}
             </small>
           </div>
         ) : filtered.length === 0 ? (
@@ -574,7 +579,7 @@ function EmptyPane({ total, hidden, onNew }: { total: number; hidden: boolean; o
       </div>
       <h2>{!total ? 'คลังของคุณพร้อมแล้ว' : hidden ? 'ค้นหารายการทางซ้าย' : 'เลือกรายการทางซ้าย'}</h2>
       <p className="muted">
-        {total ? `มีทั้งหมด ${total} รายการ เข้ารหัสอยู่ในเครื่องนี้` : 'เริ่มเก็บรหัสผ่าน API key, token หรือ cURL แรกของคุณ'}
+        {total ? (hidden ? 'ข้อมูลเข้ารหัสอยู่ในเครื่องนี้' : `มีทั้งหมด ${total} รายการ เข้ารหัสอยู่ในเครื่องนี้`) : 'เริ่มเก็บรหัสผ่าน API key, token หรือ cURL แรกของคุณ'}
       </p>
       <button className="btn primary" onClick={onNew}>
         <Plus /> สร้างรายการใหม่

@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { AlertTriangle, Database, Download, FileUp, FolderOpen, Loader2, Send, Share2, X } from 'lucide-react'
+import { AlertTriangle, Database, Download, FileUp, FolderOpen, Loader2, Puzzle, Send, Share2, X } from 'lucide-react'
 import type { DecryptedItem, Entry } from '../lib/vault'
 import {
   applyEnvironment,
@@ -14,8 +14,11 @@ import {
   isPostmanV1Collection,
   importPostmanV1Collection,
   linkEnvironments,
+  importApiClients,
   type DbeaverCreds,
 } from '../lib/importers'
+import { parseJsObjects } from '../lib/jsobject'
+import { ENVIRONMENTS } from '../lib/env'
 import { BlobReader, TextWriter, ZipReader } from '@zip.js/zip.js'
 import { ItemPicker } from './ItemPicker'
 import { CollectionPicker } from './CollectionPicker'
@@ -24,7 +27,7 @@ import { databaseSummary } from '../lib/format'
 import { ShareImport } from './Share'
 import { CopyButton } from './ui'
 
-type Source = 'dbeaver' | 'postman' | 'share'
+type Source = 'dbeaver' | 'postman' | 'apikeys' | 'share'
 
 const DBEAVER_PATH = '%APPDATA%\\DBeaverData\\workspace6'
 
@@ -46,6 +49,7 @@ export function ImportTools({
   const tabs: { id: Source; label: string; Icon: typeof Database; color: string }[] = [
     { id: 'dbeaver', label: 'DBeaver', Icon: Database, color: '#16a34a' },
     { id: 'postman', label: 'Postman', Icon: Send, color: '#ff6c37' },
+    { id: 'apikeys', label: 'API Keys (ไฟล์ JS / JSON)', Icon: Puzzle, color: '#7c3aed' },
     { id: 'share', label: 'ไฟล์ Vault (.vault / .vshare)', Icon: Share2, color: '#5a6cf6' },
   ]
 
@@ -77,6 +81,8 @@ export function ImportTools({
 
       {source === 'share' ? (
         <ShareImport existing={existing} onImport={onImport} onClose={onClose} embedded />
+      ) : source === 'apikeys' ? (
+        <ApiKeysImport existing={existing} onImport={onImport} />
       ) : (
         <ToolImport key={source} source={source} existing={existing} onImport={onImport} toast={toast} />
       )}
@@ -454,4 +460,218 @@ async function parsePostman(files: File[]): Promise<Parsed> {
   linkEnvironments(envs, names)
   const notes = [`${cols} collection`, `${entries.length} request`, `${envs.length} environment`]
   return { entries, envs, notes }
+}
+
+const API_SAMPLE = `Gamification: {
+  name: "Gamification",
+  clientId: "…",
+  clientSecret: "…",
+},`
+
+/** clientId shortened for the preview: abcd…wxyz */
+const shortId = (s = '') => (s.length > 14 ? `${s.slice(0, 6)}…${s.slice(-4)}` : s)
+
+/**
+ * API client keys from a JS / JSON-ish object file (or pasted text). Parsed
+ * with a lenient literal reader: nothing in the file is ever executed.
+ */
+function ApiKeysImport({
+  existing,
+  onImport,
+}: {
+  existing: DecryptedItem[]
+  onImport: (entries: Entry[]) => Promise<void>
+}) {
+  const [entries, setEntries] = useState<Entry[] | null>(null)
+  const [sources, setSources] = useState<string[]>([])
+  const [paste, setPaste] = useState('')
+  const [env, setEnv] = useState('') // '' = as detected
+  const [target, setTarget] = useState<string | null>('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const existingKeys = useMemo(() => new Set(existing.map(dupKey)), [existing])
+
+  function load(texts: { name: string; text: string }[]) {
+    setError('')
+    const found: Entry[] = []
+    for (const { name, text } of texts) {
+      const items = importApiClients(parseJsObjects(text), name)
+      if (!items.length) {
+        setError(`ไม่พบ clientId / clientSecret / apiKey ใน ${name}`)
+        return
+      }
+      found.push(...items)
+    }
+    setEntries(found)
+    setSources(texts.map((t) => t.name))
+  }
+
+  async function readFiles(list: FileList | null) {
+    if (!list?.length) return
+    setBusy(true)
+    try {
+      load(await Promise.all([...list].map(async (f) => ({ name: f.name, text: await f.text() }))))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const finalEntries = useMemo(
+    () =>
+      (entries ?? []).map((e) => ({
+        ...e,
+        environment: env || e.environment,
+        collection: target ?? e.collection,
+      })),
+    [entries, env, target],
+  )
+
+  const dupIds = useMemo(
+    () => new Set(finalEntries.flatMap((e, i) => (existingKeys.has(dupKey(e)) ? [String(i)] : []))),
+    [finalEntries, existingKeys],
+  )
+
+  // reselect (everything except duplicates) whenever the list changes
+  const listKey = finalEntries.map(dupKey).join('\n')
+  const [lastKey, setLastKey] = useState('')
+  if (listKey !== lastKey) {
+    setLastKey(listKey)
+    setSelected(new Set(finalEntries.flatMap((_, i) => (dupIds.has(String(i)) ? [] : [String(i)]))))
+  }
+
+  const withSecret = finalEntries.filter((e) => e.values.clientSecret || e.values.apiKey).length
+
+  return (
+    <div className="form-body">
+      <ol className="howto">
+        <li>
+          เลือกไฟล์ <code>.js</code> / <code>.ts</code> / <code>.json</code> ที่เก็บ key เป็นก้อนแบบนี้ (key ไม่ต้องมี quote, มี comma ท้ายได้)
+          <pre className="sample">{API_SAMPLE}</pre>
+        </li>
+        <li>
+          ทุกก้อนที่มี <code>clientId</code>, <code>clientSecret</code> หรือ <code>apiKey</code> จะกลายเป็นรายการประเภท <b>API Credentials</b> 1 รายการ ชื่อมาจาก <code>name</code> (หรือชื่อ key ถ้าไม่มี)
+        </li>
+        <li>
+          ถ้าแยก env ไว้ เช่น <code>UAT: {'{ … }'}</code> หรือชื่อไฟล์มี <code>-uat</code> ระบบจะใส่ Environment ให้เอง หรือเลือกเองด้านล่าง
+        </li>
+        <li>อ่านไฟล์ในเครื่องเท่านั้น ไม่มีการรันโค้ดในไฟล์ และไม่ส่งไปที่ไหน</li>
+      </ol>
+
+      <div className="drop-row">
+        <label className="dropzone primary">
+          {busy ? <Loader2 className="spin" /> : <FileUp />}
+          <span>{sources.length ? `อ่านแล้ว: ${sources.join(', ')} · เลือกไฟล์ใหม่` : 'เลือกไฟล์ที่มี API keys'}</span>
+          <input
+            type="file"
+            multiple
+            accept=".js,.mjs,.cjs,.ts,.json,.txt,.env,text/*,application/json,application/javascript"
+            onChange={(e) => {
+              void readFiles(e.target.files)
+              e.target.value = ''
+            }}
+          />
+        </label>
+      </div>
+
+      <details className="paste-box">
+        <summary>หรือวางข้อความแทนการเลือกไฟล์</summary>
+        <textarea
+          className="mono masked"
+          rows={5}
+          value={paste}
+          placeholder={API_SAMPLE}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(e) => setPaste(e.target.value)}
+        />
+        <button className="btn ghost sm" disabled={!paste.trim()} onClick={() => load([{ name: 'ข้อความที่วาง', text: paste }])}>
+          อ่านข้อความ
+        </button>
+      </details>
+
+      {error && <p className="hint error">{error}</p>}
+
+      {entries && (
+        <>
+          <div className="import-summary">
+            <span>พบ {finalEntries.length} client</span>
+            <span>มี secret / key {withSecret} รายการ</span>
+          </div>
+
+          <label className="form-row">
+            <span className="form-label">Environment</span>
+            <select value={env} onChange={(e) => setEnv(e.target.value)}>
+              <option value="">ตามที่ตรวจพบ ({[...new Set(entries.map((e) => e.environment || 'ไม่ระบุ'))].join(', ')})</option>
+              {ENVIRONMENTS.map((x) => (
+                <option key={x} value={x}>
+                  {x} ทั้งหมด
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="form-row">
+            <span className="form-label">เก็บไว้ในหมวด</span>
+            <CollectionPicker
+              value={target}
+              onChange={setTarget}
+              options={collectionsOf(existing)}
+            />
+          </div>
+
+          <div className="form-row">
+            <div className="pick-head">
+              <span className="form-label">
+                เลือกแล้ว {selected.size} จาก {finalEntries.length}
+              </span>
+              <span>
+                <button className="btn ghost sm" onClick={() => setSelected(new Set(finalEntries.map((_, i) => String(i))))}>
+                  เลือกทั้งหมด
+                </button>
+                <button className="btn ghost sm" onClick={() => setSelected(new Set())}>
+                  ล้าง
+                </button>
+              </span>
+            </div>
+            <ItemPicker
+              items={finalEntries.map((e, i) => ({ ...e, id: String(i) }))}
+              selected={selected}
+              dupIds={dupIds}
+              subtitle={(e) =>
+                [e.values.clientId && `Client ID ${shortId(e.values.clientId)}`, e.values.clientSecret || e.values.apiKey ? '🔑' : '']
+                  .filter(Boolean)
+                  .join(' · ')
+              }
+              onToggle={(id) =>
+                setSelected((s) => {
+                  const n = new Set(s)
+                  if (n.has(id)) n.delete(id)
+                  else n.add(id)
+                  return n
+                })
+              }
+            />
+          </div>
+
+          <div>
+            <button
+              className="btn primary"
+              disabled={!selected.size || busy}
+              onClick={async () => {
+                setBusy(true)
+                setPaste('')
+                await onImport(finalEntries.filter((_, i) => selected.has(String(i))))
+              }}
+            >
+              <Download /> เพิ่ม {selected.size} รายการลงคลัง
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }

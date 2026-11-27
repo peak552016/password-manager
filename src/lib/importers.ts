@@ -5,7 +5,8 @@
  *  - DBeaver: data-sources.json (+ optional credentials-config.json)
  *  - Postman: Collection v2.x export, Environment export
  */
-import { EMPTY_ENTRY, type Entry } from './vault'
+import { EMPTY_ENTRY, type CustomField, type Entry } from './vault'
+import type { JsRoot, JsValue } from './jsobject'
 
 // ---------------------------------------------------------------------------
 // Environment from a name like "customer - UAT", "kyc - pre", "ekyc SIT"
@@ -415,4 +416,103 @@ export async function encryptDbeaverCredentials(obj: unknown): Promise<ArrayBuff
   out.set(iv)
   out.set(ct, 16)
   return out.buffer
+}
+
+// ---------------------------------------------------------------------------
+// API client keys from a JS / JSON object file
+//   { Gamification: { name: "Gamification", clientId: "…", clientSecret: "…" }, … }
+// ---------------------------------------------------------------------------
+
+const norm = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** normalised source key → field of the 'api' type */
+const API_FIELD: Record<string, string> = {
+  clientid: 'clientId',
+  appid: 'clientId',
+  applicationid: 'clientId',
+  consumerkey: 'clientId',
+  clientsecret: 'clientSecret',
+  secret: 'clientSecret',
+  appsecret: 'clientSecret',
+  consumersecret: 'clientSecret',
+  apikey: 'apiKey',
+  xapikey: 'apiKey',
+  key: 'apiKey',
+  url: 'url',
+  baseurl: 'url',
+  endpoint: 'url',
+  host: 'url',
+  tokenurl: 'url',
+}
+const TITLE_KEYS = ['name', 'title', 'appname', 'clientname', 'label']
+const ENV_KEYS = ['env', 'environment', 'stage']
+/** a key that marks an object as one API client */
+const MARKERS = ['clientid', 'clientsecret', 'apikey', 'xapikey', 'consumerkey', 'appid']
+const SECRET_KEY = /secret|password|passwd|pwd|token|key|private/i
+
+type JsObj = { [key: string]: JsValue }
+const isObj = (v: JsValue): v is JsObj => !!v && typeof v === 'object' && !Array.isArray(v)
+const scalar = (v: JsValue): string | null =>
+  v === null ? null : typeof v === 'object' ? null : String(v)
+
+/**
+ * Finds every object that looks like an API client (has clientId,
+ * clientSecret or apiKey) anywhere in a parsed JS/JSON file and turns it into
+ * an 'api' entry. Path keys and the file name are used to guess the
+ * environment (e.g. `UAT: { … }` or clients-uat.js).
+ */
+export function importApiClients(roots: JsRoot[], fileName = ''): Entry[] {
+  const out: Entry[] = []
+  const fileEnv = detectEnvironment(fileName)
+
+  const walk = (v: JsValue, path: string[]) => {
+    if (Array.isArray(v)) {
+      v.forEach((x) => walk(x, path))
+      return
+    }
+    if (!isObj(v)) return
+    const keys = Object.keys(v)
+    if (keys.some((k) => MARKERS.includes(norm(k)) && scalar(v[k]) !== null)) {
+      out.push(toEntry(v, path))
+      return
+    }
+    for (const k of keys) walk(v[k], [...path, k])
+  }
+
+  const toEntry = (o: JsObj, path: string[]): Entry => {
+    const values: Record<string, string> = {}
+    const fields: CustomField[] = []
+    let title = ''
+    let env = ''
+    for (const [k, raw] of Object.entries(o)) {
+      const n = norm(k)
+      const s = scalar(raw)
+      if (TITLE_KEYS.includes(n) && s && !title) {
+        title = s
+        continue
+      }
+      if (ENV_KEYS.includes(n) && s) {
+        env = detectEnvironment(s) || env
+        continue
+      }
+      const target = API_FIELD[n]
+      if (target && s !== null && !values[target]) {
+        values[target] = s
+        continue
+      }
+      if (raw === null) continue
+      const value = s ?? (Array.isArray(raw) && raw.every((x) => scalar(x) !== null) ? raw.join(', ') : JSON.stringify(raw))
+      fields.push({ label: k, value, secret: SECRET_KEY.test(k) })
+    }
+    title ||= path[path.length - 1] || 'API client'
+    // the nearest path key that names an env wins: { UAT: { App: {…} } }
+    for (const p of [...path].reverse()) env ||= detectEnvironment(p)
+    return entry({ type: 'api', title, environment: env || fileEnv, values, fields })
+  }
+
+  for (const r of roots) {
+    const name = r.name && r.name !== 'default' ? [r.name] : []
+    walk(r.value, name)
+  }
+  return out
 }
